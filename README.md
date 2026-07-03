@@ -16,7 +16,7 @@ AI-native monitoring for builders. No dashboards, no alert fatigue — just sign
 ### 2. Connect the Fixter MCP server
 
 ```
-/mcp add fixter https://mcp.fixter.dev/mcp --transport streamable-http
+claude mcp add --transport http fixter https://mcp.fixter.dev/mcp
 ```
 
 This lets the plugin provision API keys automatically — no copy-pasting secrets.

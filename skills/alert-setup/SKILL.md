@@ -15,17 +15,12 @@ Set up alert rules for critical business flows via the Fixter MCP.
 
 Call `list_services`.
 
-- **MCP not configured:** walk user through setup. Add to `.mcp.json`:
+- **MCP not configured:** walk user through setup:
 
-      {
-        "fixter": {
-          "type": "streamable-http",
-          "url": "https://mcp.fixter.dev/mcp"
-        }
-      }
+      claude mcp add --transport http fixter https://mcp.fixter.dev/mcp
 
-  Auth0 login: same credentials as the Fixter dashboard (app.fixter.dev). Browser
-  opens automatically on first connection. Restart Claude Code or `/mcp` to reload.
+  Then restart Claude Code and authenticate via `/mcp` — a browser opens; sign in
+  with the same credentials as the Fixter dashboard (fixter.dev).
 
 - **No services returned:** telemetry not flowing. Check `.fixter/onboarding-state.json`
   for OTel setup status. Tell user to deploy with OTel enabled, wait 2-3 minutes, retry.

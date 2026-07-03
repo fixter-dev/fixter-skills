@@ -87,48 +87,84 @@ and app-side env vars.
 **Dual-export:** if existing observability detected, ask the user: add Fixter alongside
 (recommended) or replace? Configure multi-export if alongside.
 
-**Credentials:** the API key must NEVER appear in conversation context or committed files.
+**Credentials:** the API key must NEVER appear in conversation context or committed
+files. Never echo, cat, or read a stored key back.
 
 Check whether the `get_ingestion_credentials` tool is available (it lives on the
 Fixter MCP gateway).
-
-**If available** → call `get_ingestion_credentials` (accepts an optional `keyTitle`
-string to label the key). Returns endpoint + protocol + `credentialsUrl` (one-time,
-24-hour expiry). The credentials URL returns JSON: `{"apiKey": "..."}`.
-
-Automate the key retrieval. First, ensure `.env` is gitignored so the key can never
-be committed accidentally:
-
-```bash
-grep -qxF '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
-```
-
-Then run a single bash command that curls the URL, extracts the key, and appends it
-to `.env` — without ever printing the key to stdout or storing it in a variable that
-would appear in conversation context:
-
-```bash
-curl -sf <credentialsUrl> | python3 -c "import sys,json; print('FIXTER_API_KEY=' + json.load(sys.stdin)['apiKey'])" >> .env
-```
-
-After running, confirm `.env` contains the `FIXTER_API_KEY=` line (check existence, do
-NOT read or print the value). If the curl fails (token already redeemed or expired),
-tell the user and offer to provision a new key.
 
 **If not available** → the Fixter MCP is not connected. Tell the user:
 
 > I can't automatically provision an API key because the Fixter MCP server isn't
 > connected. You can either:
 >
-> 1. **Add the Fixter MCP** (recommended) — run `/mcp add fixter` and set the URL to
->    `https://mcp.fixter.dev/mcp` (type: `streamable-http`). After authenticating,
->    re-run this skill and I'll provision the key automatically.
+> 1. **Add the Fixter MCP** (recommended) — run
+>    `claude mcp add --transport http fixter https://mcp.fixter.dev/mcp`, then
+>    restart Claude Code and authenticate via `/mcp` (browser opens; sign in with
+>    your Fixter credentials — same login as fixter.dev). Then re-run this skill
+>    and I'll provision the key automatically.
 >
-> 2. **Create a key manually** — go to app.fixter.dev → Settings → API Keys →
+> 2. **Create a key manually** — go to fixter.dev → Settings → API Keys →
 >    Generate Key, then set it as `FIXTER_API_KEY` in your environment.
 
 Wait for the user to complete one of these before continuing. Do not proceed with
 placeholder credentials.
+
+**If available** → let the user choose where the key goes. Each credentials URL is
+**single-use**, so the destination must be chosen before redeeming, and each
+destination gets its own key (independently revocable — this is a feature, not
+overhead).
+
+**1. Build the option list** from the infra detected in this step:
+
+| Option | Offer when | Recommended when |
+|---|---|---|
+| `.env` file in project root | Always | Local dev / docker-compose |
+| GitHub Actions secret | `.github/workflows/` exists and `gh auth status` succeeds | Deploys run through GitHub Actions |
+| Kubernetes Secret | k8s manifests/Helm detected and `kubectl` reaches a cluster | App runs on k8s |
+| Platform secret store | Matching CLI detected (`fly secrets`, AWS SSM, Vault, ...) | App deploys to that platform |
+| Manual (browser) | Always | User prefers to handle secrets themselves |
+
+**2. Ask via `AskUserQuestion`** (multiSelect): "Where should your Fixter API key be
+stored?" Put the detected-infra recommendation first. Mention that each selected
+destination gets its own key.
+
+**3. Redeem straight into each destination.** For each choice, call
+`get_ingestion_credentials` with `keyTitle` set to `<service>-<destination>`
+(e.g. `checkout-api-github-actions`). The `credentialsUrl` returns JSON
+`{"apiKey": "..."}`. Redeem in ONE command per destination — command substitution
+straight into the target, never an intermediate variable, file, or printed value:
+
+`.env` (ensure it's gitignored first):
+
+```bash
+grep -qxF '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+curl -sf -H 'Accept: application/json' <credentialsUrl> | python3 -c "import sys,json; print('FIXTER_API_KEY=' + json.load(sys.stdin)['apiKey'])" >> .env
+```
+
+GitHub Actions secret:
+
+```bash
+gh secret set FIXTER_API_KEY --body "$(curl -sf -H 'Accept: application/json' <credentialsUrl> | python3 -c "import sys,json; print(json.load(sys.stdin)['apiKey'])")"
+```
+
+Kubernetes Secret:
+
+```bash
+kubectl create secret generic fixter-credentials -n <namespace> --from-literal=FIXTER_API_KEY="$(curl -sf -H 'Accept: application/json' <credentialsUrl> | python3 -c "import sys,json; print(json.load(sys.stdin)['apiKey'])")"
+```
+
+Other platform stores follow the same pattern (`fly secrets set FIXTER_API_KEY="$(...)"`,
+`aws ssm put-parameter --type SecureString --value "$(...)"`, ...).
+
+**Manual:** call the tool, give the user the `credentialsUrl`, and tell them to open
+it in a browser — it renders a reveal-and-copy page (single-use, 24-hour expiry).
+Wait for them to confirm they've stored the key before continuing.
+
+**4. Verify by existence only** — `grep -c '^FIXTER_API_KEY=' .env`,
+`gh secret list`, `kubectl get secret fixter-credentials` — never print the value.
+If a redemption curl fails (HTTP 404 = already redeemed or expired), provision a
+fresh key and retry.
 
 All config references `${FIXTER_API_KEY}`.
 
@@ -177,6 +213,7 @@ Write `.fixter/onboarding-state.json` (add `.fixter/` to `.gitignore`):
         "exportStrategy": "direct|collector",
         "logExportPath": "otel-bridge|shipper|none",
         "serviceName": "<configured>",
+        "credentialDestinations": ["env-file", "github-actions"],
         "existingObservability": ["<if any>"],
         "dualExport": false,
         "timestamp": "<ISO>"
