@@ -94,8 +94,19 @@ Fixter MCP gateway).
 
 **If available** → call `get_ingestion_credentials` (accepts an optional `keyTitle`
 string to label the key). Returns endpoint + protocol + `credentialsUrl` (one-time,
-24-hour expiry). Tell user to open the URL in a browser and set the key as
-`FIXTER_API_KEY` in their env/secret store.
+24-hour expiry). The credentials URL returns JSON: `{"apiKey": "..."}`.
+
+Automate the key retrieval: run a single bash command that curls the URL, extracts the
+key, and appends it to `.env` — without ever printing the key to stdout or storing it
+in a variable that would appear in conversation context:
+
+```bash
+curl -sf <credentialsUrl> | python3 -c "import sys,json; print('FIXTER_API_KEY=' + json.load(sys.stdin)['apiKey'])" >> .env
+```
+
+After running, confirm `.env` contains the `FIXTER_API_KEY=` line (check existence, do
+NOT read or print the value). If the curl fails (token already redeemed or expired),
+tell the user and offer to provision a new key.
 
 **If not available** → the Fixter MCP is not connected. Tell the user:
 
