@@ -96,9 +96,16 @@ Fixter MCP gateway).
 string to label the key). Returns endpoint + protocol + `credentialsUrl` (one-time,
 24-hour expiry). The credentials URL returns JSON: `{"apiKey": "..."}`.
 
-Automate the key retrieval: run a single bash command that curls the URL, extracts the
-key, and appends it to `.env` — without ever printing the key to stdout or storing it
-in a variable that would appear in conversation context:
+Automate the key retrieval. First, ensure `.env` is gitignored so the key can never
+be committed accidentally:
+
+```bash
+grep -qxF '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+```
+
+Then run a single bash command that curls the URL, extracts the key, and appends it
+to `.env` — without ever printing the key to stdout or storing it in a variable that
+would appear in conversation context:
 
 ```bash
 curl -sf <credentialsUrl> | python3 -c "import sys,json; print('FIXTER_API_KEY=' + json.load(sys.stdin)['apiKey'])" >> .env
@@ -123,7 +130,7 @@ tell the user and offer to provision a new key.
 Wait for the user to complete one of these before continuing. Do not proceed with
 placeholder credentials.
 
-All config references `${FIXTER_API_KEY}`. Add `.env` to `.gitignore`.
+All config references `${FIXTER_API_KEY}`.
 
 **Sampling:** if >1000 req/s, recommend head-based sampling
 (`OTEL_TRACES_SAMPLER=parentbased_traceidratio`, `OTEL_TRACES_SAMPLER_ARG=0.1`).
