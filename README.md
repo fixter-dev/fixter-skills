@@ -1,6 +1,6 @@
 ## Getting Started with Fixter
 
-Fixter is an observability platform for traces, logs, and metrics. This plugin adds guided onboarding skills to Claude Code so you can instrument your project in minutes — no manual config.
+AI-native monitoring for builders. No dashboards, no alert fatigue — just signal. This plugin gets your project instrumented and sending data to Fixter in minutes, right from Claude Code.
 
 ### Prerequisites
 
