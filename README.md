@@ -5,7 +5,7 @@ Fixter is an observability platform for traces, logs, and metrics. This plugin a
 ### Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
-- A Fixter account at [app.fixter.dev](https://app.fixter.dev)
+- A Fixter account at [fixter.dev](https://fixter.dev)
 
 ### 1. Install the plugin
 
