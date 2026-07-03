@@ -66,12 +66,25 @@ Rules evaluate without channels but won't notify until configured.
 
 Tell user: "Live with P0 for a week. If no false positives, add P1."
 
-### 6. Threshold strategy
+Draft each candidate as a full rule spec (QuerySQL + gate) — steps 6-7 calibrate it
+against real data BEFORE anything is shown to the user.
 
-**With real data:** query via `preview_alert_rule` with 7-day lookback. Error rate:
-3-5x baseline or absolute floor, whichever higher. Latency: 2-3x normal p95.
+### 6. Ground thresholds in real data
 
-**Without data — flow-aware defaults:**
+**The default tables below are starting points, never the final answer.** Classify
+each flow by code analysis (payment? LLM-backed? CRUD?), pick the matching default,
+then calibrate:
+
+1. Run `preview_alert_rule` with the candidate query, the default threshold, and a
+   7-day lookback. The response includes the observed p95 and max per series —
+   that is your baseline; there is no excuse to guess when a service reports data.
+2. Error rate: 3-5x observed baseline or the table floor, whichever is higher.
+   Latency: 2-3x observed p95.
+3. Only fall back to raw defaults when the service has no data at all — then mark
+   the rule **uncalibrated** in the presentation and tell the user to re-run alert
+   setup after a week of data.
+
+**Flow-aware defaults:**
 
 Error rate:
 
@@ -111,25 +124,39 @@ Burn rate:
 | Standard API | 0.005 (99.5%) | > 6x | 60 min |
 | Fast-burn | same | > 14x | 5 min |
 
-Classify each flow by code analysis (LLM calls? Payment? CRUD?) and apply matching
-defaults.
+### 7. Backtest — every rule, no exceptions
 
-### 7. Backtest
+Call `preview_alert_rule` for each rule before presenting it:
+- `totalWouldFire = 0` → likely too strict — compare the threshold to the observed max
+- Fires every window → too noisy: tighten or add `consecutiveWindows`
+- A few fires → well-calibrated; note the fire timestamps so the user can check
+  whether they line up with real incidents
 
-For each rule, call `preview_alert_rule`:
-- `totalWouldFire = 0` → too strict, loosen
-- Fires constantly → too noisy, tighten or add `consecutiveWindows`
-- Few fires → well-calibrated, confirm
+Iterate until each rule is right. A rule that was never backtested must not be
+presented (except the explicitly-marked uncalibrated ones from step 6).
 
-Iterate until each rule is right.
+### 8. Present rules with their gates, then create
 
-### 8. Create rules
+Present every rule in this format — never a bare name list:
 
-Call `create_alert_rule` per approved rule. Present summary with IDs.
+    <rule name> [P0]
+      Query:    SELECT error_rate() AS value FROM spans WHERE service = 'checkout-api'
+      Gate:     fires when value > 0.05 for 2 consecutive 5-min windows
+      Backtest: 7d — would have fired 3x; observed p95 0.021, max 0.093
+      Why:      payment-adjacent flow; threshold = 3x observed baseline
+
+The gate line must spell out threshold, comparator, window length, and consecutive
+windows. The backtest line shows the evidence behind the threshold — or says
+"uncalibrated (no data yet)".
+
+After user approval, call `create_alert_rule` per rule. Confirm with rule IDs and
+the same gate summaries.
 
 ### 9. System-suggested rules
 
-Call `list_suggested_rules`. Present to user; offer to activate or dismiss.
+Call `list_suggested_rules`. Treat suggestions exactly like your own candidates:
+backtest each via `preview_alert_rule` and present in the step 8 format. Offer
+`activate_suggested_rule` / `dismiss_suggested_rule` per rule.
 
 ### 10. Save state
 
