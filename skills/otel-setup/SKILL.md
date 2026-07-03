@@ -89,9 +89,10 @@ and app-side env vars.
 
 **Credentials:** the API key must NEVER appear in conversation context or committed files.
 
-1. If Fixter MCP connected → call `get_ingestion_credentials`. Returns endpoint +
-   protocol + `credentialsUrl` (one-time, 15 min expiry). Tell user to open the URL and
-   set the key as `FIXTER_API_KEY` in their env/secret store.
+1. If Fixter MCP connected → call `get_ingestion_credentials` (accepts an optional
+   `keyTitle` string to label the key). Returns endpoint + protocol + `credentialsUrl`
+   (one-time, 24-hour expiry). Tell user to open the URL in a browser and set the key
+   as `FIXTER_API_KEY` in their env/secret store.
 2. If no MCP → tell user: "Go to app.fixter.dev → Settings → API Keys → Generate Key.
    Set it as FIXTER_API_KEY in your environment."
 
@@ -104,11 +105,18 @@ Do not sample logs — address log volume via log level config instead.
 ### 6. LLM observability
 
 Scan for LLM client libraries (`openai`, `anthropic`, `langchain`, `litellm`,
-`@anthropic-ai/sdk`, `google-generativeai`, `cohere`, `mistralai`).
+`@anthropic-ai/sdk`, `@anthropic-ai/claude-agent-sdk`, `google-generativeai`,
+`cohere`, `mistralai`).
 
-If found: default to **OpenLLMetry** (`traceloop-sdk`). Research current coverage at
-runtime (WebSearch the package registry / changelog) before recommending. Only suggest
-**OpenInference** if OpenLLMetry has an actual gap for the user's provider.
+Choose the instrumentation library based on the detected SDK:
+
+- **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`) → use **OpenInference**
+  (`@arizeai/openinference-instrumentation-claude-agent-sdk`). OpenLLMetry does not
+  support the Agent SDK. OpenInference emits AGENT + TOOL spans per `query()` call.
+- **Other LLM SDKs** (`openai`, `anthropic`, `langchain`, `litellm`, etc.) → default
+  to **OpenLLMetry** (`traceloop-sdk`). Research current coverage at runtime
+  (WebSearch the package registry / changelog) before recommending. Only suggest
+  OpenInference if OpenLLMetry has an actual gap for the user's provider.
 
 ### 7. Verify the full pipeline
 
