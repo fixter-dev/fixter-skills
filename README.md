@@ -21,6 +21,12 @@ AI-native monitoring for builders. No dashboards, no alert fatigue — just sign
 
 This lets the plugin provision API keys automatically — no copy-pasting secrets.
 
+After adding the MCP server, reload plugins so the skills pick it up:
+
+```
+/reload-plugins
+```
+
 ### 3. Run the onboarding
 
 Use the `/onboard` command for a full guided walkthrough, or invoke individual skills directly:
