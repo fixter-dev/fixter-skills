@@ -304,3 +304,58 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_SERVICE_NAME=<service-name>
 OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 ```
+
+---
+
+## LLM Observability Libraries
+
+These instrument LLM client calls (model name, token counts, prompts, completions)
+as OTel spans. Choose based on which LLM SDK the project uses.
+
+### OpenInference (Arize AI)
+
+| Package | Registry | Version | Instruments |
+|---|---|---|---|
+| `@arizeai/openinference-instrumentation-claude-agent-sdk` | npm | 0.2.8 | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) |
+| `openinference-instrumentation-openai` | PyPI | 0.1.52 | OpenAI Python SDK |
+| `openinference-instrumentation-anthropic` | PyPI | 1.0.6 | Anthropic Python SDK |
+| `openinference-instrumentation-langchain` | PyPI | 0.1.67 | LangChain |
+
+**Claude Agent SDK (Node.js):**
+
+```
+npm install @arizeai/openinference-instrumentation-claude-agent-sdk@^0.2.8
+```
+
+Emits AGENT + TOOL spans per `query()` call. Must be wired after the OTel tracer
+provider is registered. See the `manuallyInstrument` export.
+
+**Python (OpenAI / Anthropic / LangChain):**
+
+```
+pip install openinference-instrumentation-openai>=0.1.52
+pip install openinference-instrumentation-anthropic>=1.0.6
+pip install openinference-instrumentation-langchain>=0.1.67
+```
+
+### OpenLLMetry (Traceloop)
+
+| Package | Registry | Version | Notes |
+|---|---|---|---|
+| `@traceloop/node-server-sdk` | npm | 0.27.0 | Node.js — auto-instruments OpenAI, Anthropic, LangChain, etc. |
+| `traceloop-sdk` | PyPI | 0.62.1 | Python — auto-instruments OpenAI, Anthropic, LangChain, LiteLLM, etc. |
+
+**Node.js:**
+
+```
+npm install @traceloop/node-server-sdk@^0.27.0
+```
+
+**Python:**
+
+```
+pip install traceloop-sdk>=0.62.1
+```
+
+OpenLLMetry auto-detects installed LLM libraries. Does NOT support the Claude
+Agent SDK (`@anthropic-ai/claude-agent-sdk`) — use OpenInference for that.

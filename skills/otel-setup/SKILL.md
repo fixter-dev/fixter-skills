@@ -89,12 +89,28 @@ and app-side env vars.
 
 **Credentials:** the API key must NEVER appear in conversation context or committed files.
 
-1. If Fixter MCP connected → call `get_ingestion_credentials` (accepts an optional
-   `keyTitle` string to label the key). Returns endpoint + protocol + `credentialsUrl`
-   (one-time, 24-hour expiry). Tell user to open the URL in a browser and set the key
-   as `FIXTER_API_KEY` in their env/secret store.
-2. If no MCP → tell user: "Go to app.fixter.dev → Settings → API Keys → Generate Key.
-   Set it as FIXTER_API_KEY in your environment."
+Check whether the `get_ingestion_credentials` tool is available (it lives on the
+Fixter MCP gateway).
+
+**If available** → call `get_ingestion_credentials` (accepts an optional `keyTitle`
+string to label the key). Returns endpoint + protocol + `credentialsUrl` (one-time,
+24-hour expiry). Tell user to open the URL in a browser and set the key as
+`FIXTER_API_KEY` in their env/secret store.
+
+**If not available** → the Fixter MCP is not connected. Tell the user:
+
+> I can't automatically provision an API key because the Fixter MCP server isn't
+> connected. You can either:
+>
+> 1. **Add the Fixter MCP** (recommended) — run `/mcp add fixter` and set the URL to
+>    `https://mcp.fixter.dev/mcp` (type: `streamable-http`). After authenticating,
+>    re-run this skill and I'll provision the key automatically.
+>
+> 2. **Create a key manually** — go to app.fixter.dev → Settings → API Keys →
+>    Generate Key, then set it as `FIXTER_API_KEY` in your environment.
+
+Wait for the user to complete one of these before continuing. Do not proceed with
+placeholder credentials.
 
 All config references `${FIXTER_API_KEY}`. Add `.env` to `.gitignore`.
 
