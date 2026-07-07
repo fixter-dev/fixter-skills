@@ -1,6 +1,6 @@
 {
   "name": "fixter-onboarding",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Guided onboarding for Fixter: OpenTelemetry setup, logging review, alert configuration, and telemetry investigation.",
   "author": {
     "name": "Fixter"
