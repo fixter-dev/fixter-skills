@@ -47,9 +47,21 @@ Whatever the entry, first establish scope (step 1a).
 Establish these before querying:
 
 - **Signal:** errors / latency / specific behavior / unknown.
-- **Service:** if not apparent from the ask, `list_services` → `AskUserQuestion` to pick.
-- **Environment — the safety gate.** The convention varies and may not be in telemetry at all.
-  Resolve to exactly one of three outcomes:
+- **Service — infer first, don't ask by default.** In order, stopping at the first hit:
+  1. `.fixter/onboarding-state.json` → `otelSetup.serviceName` (this project's own service).
+  2. Project config: `OTEL_SERVICE_NAME`, or `service.name` in `OTEL_RESOURCE_ATTRIBUTES`
+     (`.env`, `docker-compose*.yml`, k8s manifests, otel config).
+  3. `list_services` — if it returns exactly one service, use it; if a name inferred in (1)/(2)
+     matches one it lists, use that.
+
+  Only `AskUserQuestion` when it's genuinely ambiguous (several services, none matching) — and
+  present the inferred candidate as the default. When inference is confident, state the choice in
+  one line ("Investigating `<svc>` — from your project config; tell me if you mean another") and
+  proceed. Don't block on a question you can answer from the project.
+- **Environment — the safety gate. Infer first:** read `deployment.environment` from
+  `.fixter/onboarding-state.json` or `OTEL_RESOURCE_ATTRIBUTES` — this usually resolves scope with
+  no schema call. Only if project context is silent, resolve via the tenant (the convention varies
+  and may not be in telemetry at all) to one of three outcomes:
   1. **Env attribute present** — probe `describe_schema` for `deployment.environment`, `env`,
      `environment`, or similar. If found, require it as a filter and **confirm the value with the
      user.** Attribute filters are `run_sql`-only (the `logs`/`spans` tools can't filter on them).
@@ -57,22 +69,25 @@ Establish these before querying:
   3. **Env not distinguishable in telemetry** — say so plainly. Do NOT imply a scoping that isn't
      real. Ask the user which services map to which environment and scope by `service`.
 
-  **Never silently query prod.** Confirm the target environment before running anything.
+  **Never silently query prod** — state the inferred (or chosen) environment before querying so the
+  user can correct it. Inferring from the project's own config is a visible basis, not a guess.
 - **Time window:** always bounded — open windows are unbounded scans. Default to the last 1h;
   confirm or adjust with the user. Build the `from`/`to` ISO instants from the current system
   clock; in `run_sql`, prefer a relative bound like `timestamp > now() - 3600` (seconds).
 
-### 2. Discover schema
+### 2. Discover schema — only when you need it
 
-Before building any `run_sql` query or metric query, discover the real fields:
+Skip this for a plain `logs`/`spans`/`metrics` query; those use fixed fields and need no probe.
+Reach for it only when building a `run_sql` query, or resolving an env attribute you couldn't get
+from project context (step 1a):
 
 - `describe_schema` (source `logs`, `spans`, or `metrics`) — returns the tenant's actual fields
   and dynamic/resource attributes (flattened dot-keys, e.g. `service.version`, `host.name`) plus
   the available QuerySQL functions. This is `describe_schema`, NOT `describe_telemetry_schema`
   (that one is for alert rules).
 - `list_metrics` before any `metrics` call — `metrics` needs an exact `metricName`.
-- Opportunistic: read `.fixter/onboarding-state.json` for `confirmedFlows` / `errorPatterns` from a
-  prior logging review to focus the search.
+- To focus the search, reuse `.fixter/onboarding-state.json` `confirmedFlows` / `errorPatterns`
+  from a prior logging review (already read for scope in step 1a).
 
 ### 3. Phase A — Query the relevant signal(s)
 
