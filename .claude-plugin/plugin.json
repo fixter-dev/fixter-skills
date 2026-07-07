@@ -1,7 +1,7 @@
 {
-  "name": "fixter-onboarding",
-  "version": "0.4.1",
-  "description": "Guided onboarding for Fixter: OpenTelemetry setup, logging review, alert configuration, and telemetry investigation.",
+  "name": "fixter",
+  "version": "0.5.0",
+  "description": "Fixter for Claude Code: OpenTelemetry instrumentation, logging review, alerting, and telemetry investigation.",
   "author": {
     "name": "Fixter"
   },

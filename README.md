@@ -16,7 +16,7 @@ AI-native monitoring for builders. No dashboards, no alert fatigue — just sign
 ### 2. Install the plugin
 
 ```
-/plugin install fixter-onboarding@fixter-skills
+/plugin install fixter@fixter-skills
 ```
 
 ### 3. Connect the Fixter MCP server
