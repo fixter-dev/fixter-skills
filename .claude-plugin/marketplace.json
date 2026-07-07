@@ -3,10 +3,10 @@
   "owner": { "name": "Fixter" },
   "plugins": [
     {
-      "name": "fixter-onboarding",
+      "name": "fixter",
       "source": ".",
-      "description": "Guided onboarding for Fixter: OpenTelemetry setup, logging review, alert configuration, and telemetry investigation.",
-      "version": "0.4.1"
+      "description": "Fixter for Claude Code: OpenTelemetry instrumentation, logging review, alerting, and telemetry investigation.",
+      "version": "0.5.0"
     }
   ]
 }

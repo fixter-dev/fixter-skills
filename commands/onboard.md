@@ -42,7 +42,7 @@ After completion, tell the user:
 "OTel setup is complete. Before continuing:
 1. Deploy your instrumented application
 2. Wait 2-3 minutes for telemetry to start flowing
-3. Run /fixter-onboarding:onboard again to continue"
+3. Run /fixter:onboard again to continue"
 
 ## Step 4: Logging review
 
@@ -91,5 +91,5 @@ When all steps are complete, assemble a summary from `.fixter/onboarding-state.j
 
     Next steps:
       • Monitor P0 alerts for 1 week
-      [• Run /fixter-onboarding:onboard to add P1 alerts]
+      [• Run /fixter:onboard to add P1 alerts]
       • Run logging-review on other services in your architecture
