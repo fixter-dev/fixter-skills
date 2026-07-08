@@ -23,7 +23,7 @@ Call `list_services`.
 
   Then restart Claude Code and authenticate via `/mcp` — a browser opens; sign in with the
   same credentials as the Fixter dashboard (fixter.dev).
-- **No services returned:** telemetry isn't flowing. Point the user at the otel-setup skill and
+- **No services returned:** telemetry isn't flowing. Point the user at the `fixter:otel-setup` skill and
   stop — there is nothing to query.
 
 ### 1. Route to the right entry point
@@ -37,6 +37,7 @@ evidence and the signal (step 1a):
 | an **error / log-text symptom** | `logs` (Phase A, step 3) |
 | a **latency symptom** ("slow", "timing out") | `aggregate_spans` / `spans` (Phase A, step 3) |
 | a **health / RED question** for a service or operation | `aggregate_spans` (Phase A, step 3) |
+| a **"why didn't X happen"** — no response, missing side effect, silent/absent output | `aggregate_spans` on the component that *should* have acted — ask "did it run, and how did it end?", NOT `logs` (Phase A, step 3) |
 | a **metric / error-rate spike**, or a specific metric | `list_metrics` → `metrics` (Phase A, step 3) |
 | a **symptom you can't place**, or nothing specific | `logs`, and widen from there (Phase A, step 3) |
 
@@ -178,5 +179,13 @@ Timeline, Evidence, Root cause, Confidence, Remediation.
   before raw `spans`; `describe_schema` / `list_metrics` before `run_sql` / `metrics`.
 - **Evidence-only:** claim only what the data shows; state confidence; say what further query would
   confirm a thin hypothesis rather than inventing one.
+- **Absence ≠ proof.** A zero-row result only proves something didn't happen if that component
+  emits that signal there. Subprocess / agent / worker services often emit **spans but few or no
+  logs** — an empty `logs` query for one is the *wrong signal*, not evidence it never ran. Before
+  concluding "X never happened," check the peer signal (`aggregate_spans` / `spans` for the
+  service) and, if unsure what a service emits, `describe_schema` (lists services with per-signal
+  volumes). Relatedly, a specific id you're handed (thread / request / order) is a search **seed,
+  not a fence**: pivot to the entity (user, customer, resource) and search correlated records —
+  retries, mirrors, and re-homed ids mean the downstream work may not carry the id you started with.
 - **Sensitive data:** logs and traces may contain PII, credentials, or secrets. Be mindful when
   quoting them in chat and the RCA file; don't echo obvious secrets/tokens verbatim.

@@ -35,14 +35,14 @@ After adding the MCP server, reload plugins so the skills pick it up:
 
 ### 4. Run the onboarding
 
-Use the `/onboard` command for a full guided walkthrough, or invoke individual skills directly:
+Use the `/fixter:onboard` command for a full guided walkthrough, or invoke individual skills directly:
 
 | Skill | What it does |
 |---|---|
-| `/otel-setup` | Detects your stack and adds OpenTelemetry instrumentation (traces, logs, LLM observability) |
-| `/logging-review` | Reviews your logging practices and suggests improvements for observability |
-| `/alert-setup` | Configures alerting rules for your services |
-| `/diagnose` | Queries your telemetry to investigate issues — searches logs and correlates logs, spans, and metrics to find root cause |
+| `/fixter:otel-setup` | Detects your stack and adds OpenTelemetry instrumentation (traces, logs, LLM observability) |
+| `/fixter:logging-review` | Reviews your logging practices and suggests improvements for observability |
+| `/fixter:alert-setup` | Configures alerting rules for your services |
+| `/fixter:diagnose` | Queries your telemetry to investigate issues — searches logs and correlates logs, spans, and metrics to find root cause |
 
 ### What to expect
 

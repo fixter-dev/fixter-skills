@@ -32,7 +32,7 @@ not present.
 Do NOT duplicate these with manual log lines.
 
 **Log export configured?** Read `.fixter/onboarding-state.json` if present. If log export
-is not set up, refer user to otel-setup skill step 4 first.
+is not set up, refer user to `fixter:otel-setup` skill step 4 first.
 
 ### 2. Discover business flows
 
