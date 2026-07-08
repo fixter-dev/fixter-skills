@@ -85,8 +85,10 @@ then calibrate:
    setup after a week of data.
 4. **Check that duration means processing time.** An operation whose observed p95/max
    dwarfs the service's request latency (hours vs minutes) may be a measurement span
-   with a backdated start timestamp — duration anchored to a business event (Slack
-   thread ts, enqueue time), not to work done. Verify before excluding: pull a few raw
+   with a backdated start timestamp — duration anchored to an earlier business event
+   (message creation, enqueue time, order placement), not to work done, so it measures
+   elapsed business time (time-to-X, queue age, SLA clocks). Verify before excluding:
+   pull a few raw
    spans of the operation and check for a child whose start precedes its parent's —
    that is the giveaway. Aggregate stats alone prove nothing (operations legitimately
    differ by orders of magnitude); if raw spans are unavailable, ask the user what the
