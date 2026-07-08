@@ -83,6 +83,22 @@ then calibrate:
 3. Only fall back to raw defaults when the service has no data at all — then mark
    the rule **uncalibrated** in the presentation and tell the user to re-run alert
    setup after a week of data.
+4. **Check that duration means processing time.** An operation whose observed p95/max
+   dwarfs the service's request latency (hours vs minutes) may be a measurement span
+   with a backdated start timestamp — duration anchored to an earlier business event
+   (message creation, enqueue time, order placement), not to work done, so it measures
+   elapsed business time (time-to-X, queue age, SLA clocks). Verify before excluding:
+   pull a few raw
+   spans of the operation and check for a child whose start precedes its parent's —
+   that is the giveaway. Aggregate stats alone prove nothing (operations legitimately
+   differ by orders of magnitude); if raw spans are unavailable, ask the user what the
+   span measures instead of asserting a bug. Confirmed measurement spans are excluded
+   from latency rules and from any service-wide pooled percentile — a threshold
+   derived from 2-3x their p95 is meaningless. Flag the instrumentation to the user
+   (it belongs in a histogram metric); if the business duration matters, alert on it
+   as a separate explicitly-labeled rule with a threshold from the business
+   expectation confirmed with the user, never calibrated from the span's own
+   observed percentiles.
 
 **Flow-aware defaults:**
 
