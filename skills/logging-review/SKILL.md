@@ -75,6 +75,12 @@ For each confirmed flow, use the right idiom:
 - Missing business context at decision points (approved/declined, retry exhausted)
 - Missing entity IDs in logging context (order ID, user ID, tenant ID)
 - Correlation gaps across async boundaries, thread pools, queues
+- Metrics smuggled into spans: a span created with an explicit backdated start timestamp
+  (`setStartTimestamp(...)` anchored to a message/thread/queue timestamp) so its duration
+  measures business wall-clock (time-to-answer, queue age) instead of processing time.
+  The duration is real data but it poisons trace views, latency percentiles, and
+  "longest trace" queries — recommend a histogram metric (e.g. `time_to_answer_seconds`)
+  or an attribute on the real span instead. Do not endorse or extend such spans.
 
 **Do NOT suggest:**
 - Duplicating OTel auto-instrumentation or framework request logging
