@@ -137,7 +137,8 @@ correlation. See `references/query-cookbook.md` for recipes.
 
 ### 4. Triage fork
 
-- User only wanted the data → summarize findings and stop.
+- User only wanted the data → summarize findings — each cited log/trace with a self-service
+  link built per `references/evidence-links.md` — and stop.
 - User wants "why" / root cause → confirm, then continue to Phase B.
 
 ### 5. Phase B — Correlate across signals (root cause)
@@ -158,7 +159,10 @@ together into one causal story.
 Present in chat:
 
 - **Timeline:** first error → propagation → root span.
-- **Evidence:** trace ids, span names, metric deltas, representative log lines.
+- **Evidence:** trace ids, span names, metric deltas, representative log lines — every log/trace
+  claim carries a self-service link built per `references/evidence-links.md` (window from the
+  actual query, tz detected on the user's machine, URL shell-encoded — never hand-assembled).
+  Include the same links in the RCA file's Evidence section.
 - **Root-cause hypothesis** with an explicit **confidence** level.
 - **Remediation** suggestions.
 - If evidence is thin, say what further query would confirm it — do not fabricate a cause.

@@ -146,7 +146,9 @@ Call `preview_alert_rule` for each rule before presenting it:
 - `totalWouldFire = 0` → likely too strict — compare the threshold to the observed max
 - Fires every window → too noisy: tighten or add `consecutiveWindows`
 - A few fires → well-calibrated; note the fire timestamps so the user can check
-  whether they line up with real incidents
+  whether they line up with real incidents — for log-based rules, give each fire a
+  self-service log link (the rule's filter as the query, window = the fired window,
+  built per `../diagnose/references/evidence-links.md`)
 
 Iterate until each rule is right. A rule that was never backtested must not be
 presented (except the explicitly-marked uncalibrated ones from step 6).
@@ -160,6 +162,9 @@ Present every rule in this format — never a bare name list:
       Gate:     fires when value > 0.05 for 2 consecutive 5-min windows
       Backtest: 7d — would have fired 3x; observed p95 0.021, max 0.093
       Why:      payment-adjacent flow; threshold = 3x observed baseline
+      Evidence: [view logs](https://app.fixter.dev/logs?…) — for log-based rules, the
+                offending logs in a fired window (built per
+                ../diagnose/references/evidence-links.md); omit when there is no log evidence
 
 The gate line must spell out threshold, comparator, window length, and consecutive
 windows. The backtest line shows the evidence behind the threshold — or says
