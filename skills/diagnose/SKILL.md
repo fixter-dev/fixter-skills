@@ -107,7 +107,14 @@ scoped and bounded (step 1a).
    (`regexp_extract`), aggregation, OR any attribute filter (env keys, `http_method`, resource
    attrs — all `run_sql`-only). Bound the range (e.g. `timestamp > now() - 3600`). If the env gate
    resolved to an attribute filter, log queries start here, not at `logs`.
-3. `get_log_neighbors` (by `logId`, a log record's id from the `logs` results) — what happened
+3. `get_log` (by `logId`) — the full, untruncated body of one row. Reach for it the moment a log
+   carries an exception: truncation eats the error chain, and the root cause is the **innermost
+   wrapped error**, not the top-level message — framework wrappers re-wrap and mask it. Where the
+   innermost error prints is runtime-specific: the last `Caused by:` in a JVM trace, the **first**
+   traceback in a chained Python one, the deepest `[cause]` / `--->` in Node/.NET, the tail of a
+   wrapped Go error string. Don't raise `maxStringChars` to chase a stack trace; fetch one
+   exemplar in full.
+4. `get_log_neighbors` (by `logId`, a log record's id from the `logs` results) — what happened
    right before/after a key line; `sameSource` defaults true (same pod), set false for cross-pod.
 
 **Spans** — latency, errors by operation, "where is it bad?":
@@ -150,6 +157,11 @@ together into one causal story.
    `statusCode="ERROR"` or `minDurationMs`), or a metric exemplar.
 2. `correlate` (by `traceId`) — one-shot spans + logs + metric exemplars for that trace. The
    primary cross-signal pivot. Use `get_trace` instead only when you need the span tree alone.
+   **Size guard:** on a long-lived trace (scheduler tick, batch job — anything whose spans cover
+   minutes, or an error list showing one span_id across a wide time range), verbose `correlate`
+   returns every span and log with attributes and can exceed the response limit. Start lean
+   (`verbose` off), or go targeted first: `logs` with `traceId=` + `level="ERROR"`, then `get_log`
+   on the exemplar.
 3. Confirm it's representative, not a one-off: re-run the relevant Phase-A query around the incident
    window (e.g. `aggregate_spans` error rate for the operation, or a saturation `metric`) so the
    single trace's story holds at the population level.
