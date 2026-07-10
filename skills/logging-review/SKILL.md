@@ -57,7 +57,10 @@ describe additional ones."
 
 If Fixter query MCP connected:
 - `list_services` → verify service emits data
-- `search_logs` / `query_sql` → check existing log coverage and error patterns
+- `logs` / `run_sql` → check existing log coverage and error patterns
+- When citing an observed error pattern as evidence, attach a self-service log link built per
+  `../diagnose/references/evidence-links.md` (window from the actual query, tz detected on the
+  user's machine — never hand-computed)
 
 If no data: skip, proceed code-only. Note this step can be revisited later.
 
