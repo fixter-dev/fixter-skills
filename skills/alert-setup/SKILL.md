@@ -13,7 +13,7 @@ Set up alert rules for critical business flows via the Fixter MCP.
 
 ### 1. Verify MCP connectivity
 
-Call `list_services`.
+Call `describe_alerting` (no params).
 
 - **MCP not configured:** walk user through setup:
 
@@ -27,8 +27,11 @@ Call `list_services`.
 
 ### 2. Discover what's alertable
 
-- `list_services` → real service names
-- `describe_telemetry_schema` for LOGS and SPANS → fields, aggregates, comparators
+The `describe_alerting` response from step 1 already has everything — no second call:
+- `services` → real service names
+- per source (LOGS/SPANS/METRICS): `measures` (each with `fn`, `label`, `unit`, and
+  `defaultMode` — THRESHOLD or ANOMALY, the mode a new rule on that measure should
+  default to), plus `fields` and `comparators`
 
 ### 3. Identify business flows
 
@@ -66,8 +69,21 @@ Rules evaluate without channels but won't notify until configured.
 
 Tell user: "Live with P0 for a week. If no false positives, add P1."
 
-Draft each candidate as a full rule spec (QuerySQL + gate) — steps 6-7 calibrate it
-against real data BEFORE anything is shown to the user.
+Draft each candidate as a structured rule spec — steps 6-7 calibrate it against real
+data BEFORE anything is shown to the user. A rule's measurement is `source` (LOGS/SPANS/METRICS)
++ optional `filter` + a `measure` (a catalog fn like `p95`, `request_count`, `error_rate`,
+`rate`, with optional `arg`/`params`) + optional `groupBy` + `windowMinutes` — not a
+hand-written query. Pick the measure from `describe_alerting`'s per-source `measures`
+list; its `defaultMode` tells you whether the flow calls for a static tier or an anomaly
+condition — error rate and latency on well-understood flows are usually THRESHOLD;
+request-count and other volume-shape signals without a natural fixed ceiling are usually
+ANOMALY. The condition is tiered: a static condition has a `warning` tier and optional
+`critical` tier, each with its own threshold/comparator and a `consecutiveWindows` sustain;
+an anomaly condition instead carries a `zScoreThreshold` and `direction`.
+
+If a candidate started life as a raw query (e.g. copied from a diagnose session), pass it
+to `preview_alert_rule` as `fromQuerySql` instead of hand-building the spec — it parses
+the query into a measurement draft you then refine with the guidance below.
 
 ### 6. Ground thresholds in real data
 
@@ -75,9 +91,9 @@ against real data BEFORE anything is shown to the user.
 each flow by code analysis (payment? LLM-backed? CRUD?), pick the matching default,
 then calibrate:
 
-1. Run `preview_alert_rule` with the candidate query, the default threshold, and a
-   7-day lookback. The response includes the observed p95 and max per series —
-   that is your baseline; there is no excuse to guess when a service reports data.
+1. Run `preview_alert_rule` with the candidate spec, the default threshold, and a
+   7-day lookback. The response's `backtest` includes the observed p95 and max per
+   series — that is your baseline; there is no excuse to guess when a service reports data.
 2. Error rate: 3-5x observed baseline or the table floor, whichever is higher.
    Latency: 2-3x observed p95.
 3. Only fall back to raw defaults when the service has no data at all — then mark
@@ -142,13 +158,16 @@ Burn rate:
 
 ### 7. Backtest — every rule, no exceptions
 
-Call `preview_alert_rule` for each rule before presenting it:
-- `totalWouldFire = 0` → likely too strict — compare the threshold to the observed max
-- Fires every window → too noisy: tighten or add `consecutiveWindows`
-- A few fires → well-calibrated; note the fire timestamps so the user can check
-  whether they line up with real incidents — for log-based rules, give each fire a
-  self-service log link (the rule's filter as the query, window = the fired window,
-  built per `../diagnose/references/evidence-links.md`)
+Call `preview_alert_rule` for each rule before presenting it. It never throws — the
+flow is **preview → fix problems → save**:
+- `problems[]` non-empty → fix the spec and preview again before looking at the backtest
+- `problems[]` empty → read `backtest`:
+  - `totalWouldFire = 0` → likely too strict — compare the threshold to the observed max
+  - Fires every window → too noisy: tighten or add `consecutiveWindows`
+  - A few fires → well-calibrated; note the fire timestamps so the user can check
+    whether they line up with real incidents — for log-based rules, give each fire a
+    self-service log link (the rule's filter as the query, window = the fired window,
+    built per `../diagnose/references/evidence-links.md`)
 
 Iterate until each rule is right. A rule that was never backtested must not be
 presented (except the explicitly-marked uncalibrated ones from step 6).
@@ -158,28 +177,24 @@ presented (except the explicitly-marked uncalibrated ones from step 6).
 Present every rule in this format — never a bare name list:
 
     <rule name> [P0]
-      Query:    SELECT error_rate() AS value FROM spans WHERE service = 'checkout-api'
-      Gate:     fires when value > 0.05 for 2 consecutive 5-min windows
-      Backtest: 7d — would have fired 3x; observed p95 0.021, max 0.093
-      Why:      payment-adjacent flow; threshold = 3x observed baseline
-      Evidence: [view logs](https://app.fixter.dev/logs?…) — for log-based rules, the
-                offending logs in a fired window (built per
-                ../diagnose/references/evidence-links.md); omit when there is no log evidence
+      Measure:   error_rate() on SPANS where service = 'checkout-api'
+      Condition: warning > 0.05 for 2 consecutive 5-min windows
+      Backtest:  7d — would have fired 3x; observed p95 0.021, max 0.093
+      Why:       payment-adjacent flow; threshold = 3x observed baseline
+      Evidence:  [view logs](https://app.fixter.dev/logs?…) — for log-based rules, the
+                 offending logs in a fired window (built per
+                 ../diagnose/references/evidence-links.md); omit when there is no log evidence
 
-The gate line must spell out threshold, comparator, window length, and consecutive
-windows. The backtest line shows the evidence behind the threshold — or says
+The condition line must spell out tier (warning/critical), threshold, comparator,
+window length, and consecutive windows — or, for anomaly rules, the z-score threshold
+and direction. The backtest line shows the evidence behind the threshold — or says
 "uncalibrated (no data yet)".
 
-After user approval, call `create_alert_rule` per rule. Confirm with rule IDs and
-the same gate summaries.
+After user approval, call `save_alert_rule` per rule (omit `ruleId` to create). It
+re-validates server-side: if it returns `problems[]` instead of the saved rule, fix
+the spec and resave. Confirm with rule IDs and the same gate summaries.
 
-### 9. System-suggested rules
-
-Call `list_suggested_rules`. Treat suggestions exactly like your own candidates:
-backtest each via `preview_alert_rule` and present in the step 8 format. Offer
-`activate_suggested_rule` / `dismiss_suggested_rule` per rule.
-
-### 10. Save state
+### 9. Save state
 
 Append to `.fixter/onboarding-state.json`:
 
