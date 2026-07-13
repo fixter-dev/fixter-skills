@@ -194,6 +194,33 @@ After user approval, call `save_alert_rule` per rule (omit `ruleId` to create). 
 re-validates server-side: if it returns `problems[]` instead of the saved rule, fix
 the spec and resave. Confirm with rule IDs and the same gate summaries.
 
+### 8a. Visual elicitation is the exception, not the routine
+
+Three things are easy to conflate — keep them distinct:
+
+- **`preview_alert_rule`** is a *data* call (validate + backtest), not a page. It is the
+  **mandatory** gate on every rule and never involves the user visiting anything. Always run it.
+- **Text approval** (present the rule + backtest in chat, get a go) is the normal confirmation.
+  It is just a message — always do it before `save_alert_rule`.
+- **Visual elicitation** — opening the interactive editor page (`elicitation/create`) — is
+  **optional** and must NOT fire on every setup. Most clients don't even implement it, so the
+  `describe → preview → present → save` loop must always stand on its own.
+
+**Only escalate to the visual editor in genuinely hard moments:**
+1. **Ambiguous intent** you cannot resolve from context, where the choice materially changes the
+   rule (several plausible services/SLOs/measures, no clear winner).
+2. **High blast radius** — a paging/critical tier on a core flow, or a filter broad enough to
+   risk a cardinality blow-up.
+3. **Backtest contradicts stated intent** — the user said "rare" but it would fire every window,
+   or zero fires over the lookback for a rule they consider important.
+4. **No data to calibrate** — an uncalibrated threshold you had to guess; confirm it visually
+   rather than saving silently.
+5. **Destructive edits** — replacing or deleting a rule others may depend on.
+
+For the common case — one clear target, clean backtest, a fresh rule, a threshold in a sane band —
+do **not** open the page: preview → present in chat → save. When in doubt, prefer the chat flow;
+reserve the visual handoff for when the stakes or the ambiguity actually justify the interruption.
+
 ### 9. Save state
 
 Append to `.fixter/onboarding-state.json`:
