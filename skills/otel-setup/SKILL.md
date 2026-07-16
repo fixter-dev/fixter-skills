@@ -68,11 +68,37 @@ Detect infra:
     OTEL_SERVICE_NAME=<service-name>
     OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 
-**B. OTel Collector (recommended for k8s):** apps send to `http://localhost:4318`,
-collector forwards to Fixter. Provide minimal collector config, DaemonSet guidance,
-and app-side env vars.
+**B. OTel Collector (recommended for k8s):** install the published Fixter collector
+chart — do NOT hand-roll a collector config or DaemonSet. The chart ships pod-log
+collection, kubelet/host metrics, and an OTLP relay for your apps, all tested and
+released.
 
-**C. OTel Collector for Docker Compose:** add collector service, apps point by name.
+    helm install fixter-collector \
+      oci://ghcr.io/fixter-dev/charts/fixter-collector \
+      --namespace fixter --create-namespace \
+      --set fixter.apiKey=<key> \
+      --set fixter.clusterName=<cluster>   # set this when you run >1 cluster
+
+Then point apps at the agent's Service DNS (the relay is on by default) — NOT
+`localhost:4318`; the agent has no hostPort:
+
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://fixter-collector-agent.fixter.svc.cluster.local:4318
+    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    OTEL_SERVICE_NAME=<service-name>
+
+Installing the chart alone already gets pod logs + k8s metrics into Fixter with zero
+app changes; the env vars above add your app's own traces/logs on top. If you'd
+rather not run a collector, direct export (option A) works from k8s too — the app
+sends straight to `https://ingest.fixter.dev`.
+
+The collector also fills a missing `service.name` on pod telemetry from the k8s
+deployment name, so pod logs appear under that name (see step 7).
+
+**C. Docker Compose:** default to direct export — the app sends OTLP straight to
+`https://ingest.fixter.dev` (same as option A). A collector is optional here (its real
+value is on Kubernetes). If you do want one — e.g. for container-log collection — use
+the tested example in the collector repo at `examples/docker-compose/` (compose file +
+standalone config + README); apps then point at `http://fixter-collector:4318`.
 
 **Resource attributes to configure:**
 
@@ -154,6 +180,11 @@ Kubernetes Secret:
 kubectl create secret generic fixter-credentials -n <namespace> --from-literal=FIXTER_API_KEY="$(curl -sf -H 'Accept: application/json' <credentialsUrl> | python3 -c "import sys,json; print(json.load(sys.stdin)['apiKey'])")"
 ```
 
+> If you install the collector chart (option B), create this Secret in **`-n fixter`**
+> (the chart reads its key from a Secret in its own namespace) and it drops in as
+> `--set fixter.existingSecret=fixter-credentials` — the chart's default key is
+> `FIXTER_API_KEY`, so no `existingSecretKey` override is needed.
+
 Other platform stores follow the same pattern (`fly secrets set FIXTER_API_KEY="$(...)"`,
 `aws ssm put-parameter --type SecureString --value "$(...)"`, ...).
 
@@ -196,8 +227,15 @@ If Fixter MCP connected, verify each signal:
 - **Correlation:** check `trace_id` populated in returned logs
 - **Attributes:** verify `service.name`, `deployment.environment`, `service.version`
 
-If any signal missing, diagnose: spans missing = SDK/agent issue; logs missing = log
-export (step 4) not configured; correlation missing = log bridge not active.
+If any signal missing, diagnose:
+- **spans missing** = SDK/agent issue.
+- **logs missing under `<svc>`** — before concluding export is broken, check whether the
+  logs arrived under a *different* service. Query `search_logs` with no service filter
+  for the same time window. Pod logs shipped by the collector are tagged with the k8s
+  deployment/container name (not your `OTEL_SERVICE_NAME`), and infra logs can have an
+  empty service. If nothing arrives under any service, then log export (step 4) isn't
+  configured.
+- **correlation missing** = log bridge not active.
 
 If no MCP: provide a manual verification checklist for the Fixter dashboard.
 

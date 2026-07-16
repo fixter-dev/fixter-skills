@@ -37,6 +37,9 @@ that alert setup (step 5) will need the MCP.
 
 If `otelSetup.completed` is not true, run the otel-setup skill flow.
 
+For Kubernetes projects this installs the published Fixter collector chart
+(`oci://ghcr.io/fixter-dev/charts/fixter-collector`); the skill handles the details.
+
 After completion, tell the user:
 
 "OTel setup is complete. Before continuing:
