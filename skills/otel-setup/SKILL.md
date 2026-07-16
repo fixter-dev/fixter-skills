@@ -51,6 +51,13 @@ Check for existing log shippers (`fluent.conf`, `fluent-bit.conf`, `vector.toml`
 **Prefer OTel log bridge** (Path 1) when the language supports it. **Fall back to log
 shipper** (Path 2) when no stable bridge exists or the project already uses a shipper.
 
+**If you land on Path 2** — a log shipper, OR the Fixter collector / any DaemonSet
+tailing pod stdout — **the app must emit structured JSON to stdout first.** Collectors
+forward stdout verbatim, so plaintext lines arrive as opaque, un-queryable strings.
+"Logs are flowing" is not the goal; queryable logs are — this is a required half of
+Path 2, not a follow-up. See log-export.md ("Path 2 requires JSON logs"). Path 1 (the
+bridge) structures logs itself and needs no format change.
+
 ### 5. Detect infrastructure + configure export
 
 Detect infra:
