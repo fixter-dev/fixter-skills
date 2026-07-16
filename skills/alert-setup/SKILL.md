@@ -7,11 +7,12 @@ description: Use when setting up Fixter alert rules for a project's business flo
 
 Set up alert rules for critical business flows via the Fixter MCP.
 
-**Prerequisites:** Fixter MCP connected, telemetry flowing.
+**Prerequisites:** Fixter MCP connected, and telemetry that has been flowing long
+enough to calibrate against (see step 1 — minutes of data make bad alerts).
 
 ## Flow
 
-### 1. Verify MCP connectivity
+### 1. Verify MCP connectivity and data maturity
 
 Call `describe_alerting` (no params).
 
@@ -24,6 +25,29 @@ Call `describe_alerting` (no params).
 
 - **No services returned:** telemetry not flowing. Check `.fixter/onboarding-state.json`
   for OTel setup status. Tell user to deploy with OTel enabled, wait 2-3 minutes, retry.
+
+**Then check data maturity — do NOT calibrate against minutes of data.** A thresholds
+is only as good as its baseline; a 7-day lookback over 3 minutes of data is garbage.
+Presence of a service (above) is not enough — check the data's *age*. Probe with
+`run_sql` on the signal your rules will use (`spans`, or `logs` for a logs-only
+service):
+
+    SELECT count() AS n FROM spans WHERE timestamp < now() - 86400
+
+- **n = 0 (no data older than 24h):** the tenant is too new to calibrate. Alert setup
+  is **optional right now** — tell the user the honest tradeoff (thresholds set today
+  will be guesses and likely noisy), and offer two choices via `AskUserQuestion`:
+  1. **Defer (recommended)** — come back after ~a week of data for calibrated alerts.
+     Write `{"alertSetup": {"deferred": true, "reason": "insufficient-data"}}` to
+     `.fixter/onboarding-state.json` and stop here.
+  2. **Safety-net only** — create just the rules that need **no** baseline: OOM > 1,
+     unhandled-exception count > 3, DB/cache connection failures (the error-count table
+     in step 6, not the rate/latency tables). Mark each **uncalibrated** and skip every
+     threshold-calibrated flow rule (error-rate %, latency p95) — those require real
+     data. Then go to step 4.
+- **n > 0 (data spans more than 24h):** proceed to step 2 and calibrate normally. Note:
+  ≥ 7 days is ideal; between 24h and 7d, calibrate but tell the user thresholds may need
+  to tighten as more data accumulates.
 
 ### 2. Discover what's alertable
 

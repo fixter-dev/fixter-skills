@@ -61,6 +61,13 @@ If `alertSetup.completed` is not true, run the alert-setup skill flow.
 This step requires the Fixter MCP. If not connected, walk the user through setup
 (same instructions as step 2).
 
+Alert setup checks data maturity first: good thresholds need a real baseline, so if
+telemetry is only minutes old (common right after step 3's short soak) the skill will
+recommend **deferring** rather than calibrating against noise. That's expected, not a
+failure. If it writes `alertSetup.deferred`, tell the user their instrumentation is
+working and to re-run `/fixter:onboard` after ~a week of data for well-calibrated
+alerts (or take the safety-net-only rules now).
+
 ## Step 6: P1 alert expansion
 
 If `alertSetup.completed` is true but `alertSetup.pendingRules` is non-empty, ask:
