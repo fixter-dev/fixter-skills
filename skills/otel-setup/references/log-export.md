@@ -85,21 +85,23 @@ near-useless for search, alerting, and trace correlation.
 itself, so the app's console format is irrelevant there. Do not tell a Path 1 project
 to change its log format.)
 
-**How Fixter reads a JSON log line:** ingestion parses the JSON body into fields — it
-takes `message` or `msg` as the log text and explodes the remaining keys into queryable
-attributes. Put IDs/values as top-level keys (not baked into the message string), and
-include `trace_id` / `span_id` when you have tracing so logs correlate with spans. Keep
-logging to stdout; change only the format:
+**The field-name contract — get this right or the JSON is levelless.** The collector's
+`json_parser` reads severity from a top-level **`level`** key and correlation from
+top-level **`trace_id`** / **`span_id`**; Fixter ingestion reads **`message`** or **`msg`**
+as the log text and explodes the rest into queryable attributes. The names are exact: a
+formatter that emits `log.level`, `levelname`, `@l`, or dotted `trace.id` produces a
+valid JSON line that still arrives with **no severity and no trace correlation** — and it
+looks fine in `kubectl logs`, so this fails silently. Emit `level` / `trace_id` /
+`span_id` with those literal names, as top-level keys (not baked into the message string).
 
-| Stack | JSON logging |
+| Stack | JSON that emits `level` (avoid the levelless default) |
 |---|---|
-| Java / Spring Boot 3.4+ | `logging.structured.format.console=ecs` (no dependency); older: `logstash-logback-encoder` |
-| Python | `python-json-logger`, or structlog with `JSONRenderer` |
-| Node / TS | pino (JSON by default), or winston `format.json()` |
-| Go | `slog` with `JSONHandler` (or zerolog / zap) |
-| C# / .NET | Serilog `CompactJsonFormatter` |
-| Ruby | ougai, or lograge with JSON |
-| PHP | Monolog `JsonFormatter` |
+| Java / Spring Boot 3.4+ | `logging.structured.format.console=logstash` (no dependency; emits flat `level`). **Not `ecs`** — ECS emits `log.level` / `trace.id`, which the collector's `level` / `trace_id` lookup misses. Pre-3.4: `logstash-logback-encoder`. |
+| Python | structlog with `add_log_level` + `JSONRenderer` (emits `level`). `python-json-logger` emits `levelname` — pass `rename_fields={"levelname": "level"}`. |
+| Node / TS | pino (emits `level`, JSON by default; numeric levels are mapped) or winston `format.json()`. |
+| Go | `slog` `JSONHandler`, zerolog, or zap — all emit `level`. |
+| C# / .NET | Serilog emitting `level` (e.g. an `ExpressionTemplate` with a `level` property). The default `CompactJsonFormatter` emits `@l` (and omits it for Information) — remap it. |
+| Ruby / PHP | ougai / Monolog `JsonFormatter` — confirm the level key is `level` (Monolog emits `level_name`; remap). |
 
 Confirm with `kubectl logs <pod>` — one JSON object per line — **before** wiring the
 shipper below. In the shipper, parse the JSON so `level`/`timestamp` map correctly
@@ -158,10 +160,11 @@ Add an OTLP output plugin:
 tailing plaintext pods just ships opaque blobs. Then:
 
 **Prefer the Fixter collector chart** (otel-setup SKILL.md, option B) over a generic
-shipper on k8s: it parses JSON and glog pod logs into severity + trace correlation with
-no config, and auto-routes common database logs (ClickHouse, Doris, Postgres, MySQL,
-Kafka) via `builtinFormats`. It still forwards arbitrary **text** app logs verbatim —
-which is why your own apps must emit JSON.
+shipper on k8s: it parses JSON pod logs into severity + trace correlation (and glog into
+severity) with no config, and auto-routes common database logs (ClickHouse, Doris,
+Postgres, MySQL, Kafka) via `builtinFormats` when their container/pod names match. It
+still forwards arbitrary **text** app logs severity-less — which is why your own apps
+must emit JSON, using the exact `level`/`trace_id`/`span_id` field names above.
 
 Most k8s clusters run Fluent Bit or Fluentd as a DaemonSet collecting stdout
 from containers. Add a Fixter output to the existing DaemonSet config using

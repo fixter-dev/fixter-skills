@@ -25,8 +25,10 @@ If project uses bare print statements (`System.out.println`, `console.log`, `pri
 `echo`, `fmt.Println`, `println!`): recommend a logging framework first. Do not proceed
 to flow review without one.
 
-**Structured logging configured?** JSON output or structured field pattern. Recommend if
-not present.
+**Structured logging configured?** Recommend **JSON** specifically (top-level `level` /
+`trace_id` / `span_id`, `message`/`msg`) — that is what the collector auto-parses. A
+logfmt-style `key=value` layout is not auto-parsed; it needs an explicit `preset: logfmt`
+format entry, so don't accept it as equivalent to JSON. Recommend JSON if not present.
 
 **OTel auto-instrumentation active?** Note which signals are captured automatically.
 Do NOT duplicate these with manual log lines.
