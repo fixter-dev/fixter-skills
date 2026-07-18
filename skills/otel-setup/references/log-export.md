@@ -157,6 +157,12 @@ Add an OTLP output plugin:
 **First confirm the app logs JSON to stdout** ("Path 2 requires JSON logs" above) —
 tailing plaintext pods just ships opaque blobs. Then:
 
+**Prefer the Fixter collector chart** (otel-setup SKILL.md, option B) over a generic
+shipper on k8s: it parses JSON and glog pod logs into severity + trace correlation with
+no config, and auto-routes common database logs (ClickHouse, Doris, Postgres, MySQL,
+Kafka) via `builtinFormats`. It still forwards arbitrary **text** app logs verbatim —
+which is why your own apps must emit JSON.
+
 Most k8s clusters run Fluent Bit or Fluentd as a DaemonSet collecting stdout
 from containers. Add a Fixter output to the existing DaemonSet config using
 the Fluent Bit or Fluentd snippets above.
