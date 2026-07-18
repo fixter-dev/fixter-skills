@@ -101,13 +101,17 @@ sends straight to `https://ingest.fixter.dev`.
 The collector also fills a missing `service.name` on pod telemetry from the k8s
 deployment name, so pod logs appear under that name (see step 7).
 
-**What the collector parses by default:** JSON and glog (klog) pod logs get severity and
-`trace_id`/`span_id` correlation automatically — no config. Common database logs
-(ClickHouse, Doris, Postgres, MySQL, Kafka) are auto-routed by the chart's
-`builtinFormats`, so their levels come through too. Everything else is arbitrary **text**,
-which the collector deliberately does NOT guess a severity for — so your own apps should
-emit **JSON** (step 4), not a plaintext layout. Only add an `agent.logs.formats` entry
-for a text format the builtins don't already cover; don't hand-roll one for the DBs above.
+**What the collector parses by default:** JSON pod logs get severity **and**
+`trace_id`/`span_id` correlation automatically (see the field-name contract in
+log-export.md); glog (klog) logs get severity but no trace correlation. Common database
+logs (ClickHouse, Doris, Postgres, MySQL, Kafka) are auto-routed by the chart's
+`builtinFormats` — but the routing keys on the **container/pod name** (e.g. a container
+named `clickhouse`, a pod `doris-fe-*`), so a differently-named deployment (Bitnami's
+`postgresql` container, a Doris cluster whose FE pods aren't `doris-fe-*`) is NOT matched.
+Verify against `kubectl logs`; if a DB's levels are missing, add an `agent.logs.formats`
+entry pointing the matching preset at that workload's pod paths. Everything else is
+arbitrary **text**, which the collector deliberately does NOT guess a severity for — so
+your own apps should emit **JSON** (step 4), not a plaintext layout.
 
 **C. Docker Compose:** default to direct export — the app sends OTLP straight to
 `https://ingest.fixter.dev` (same as option A). A collector is optional here (its real
