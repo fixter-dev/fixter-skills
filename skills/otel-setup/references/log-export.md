@@ -87,9 +87,12 @@ to change its log format.)
 
 **The field-name contract — get this right or the JSON is levelless.** The collector's
 `json_parser` reads severity from a top-level **`level`** key and correlation from
-top-level **`trace_id`** / **`span_id`**; Fixter ingestion reads **`message`** or **`msg`**
-as the log text and explodes the rest into queryable attributes. The names are exact: a
-formatter that emits `log.level`, `levelname`, `@l`, or dotted `trace.id` produces a
+top-level **`trace_id`** / **`span_id`**, and parses every other top-level key into a
+queryable log attribute; Fixter ingestion reads **`message`** or **`msg`** as the log
+text. Parsing happens on the collection path only — Fixter ingestion stores an unparsed
+string body verbatim, so a JSON line that reaches it unparsed is one opaque message with
+no queryable fields. The names are exact: a formatter that emits `log.level`,
+`levelname`, `@l`, or dotted `trace.id` produces a
 valid JSON line that still arrives with **no severity and no trace correlation** — and it
 looks fine in `kubectl logs`, so this fails silently. Emit `level` / `trace_id` /
 `span_id` with those literal names, as top-level keys (not baked into the message string).
@@ -104,9 +107,11 @@ looks fine in `kubectl logs`, so this fails silently. Emit `level` / `trace_id` 
 | Ruby / PHP | ougai / Monolog `JsonFormatter` — confirm the level key is `level` (Monolog emits `level_name`; remap). |
 
 Confirm with `kubectl logs <pod>` — one JSON object per line — **before** wiring the
-shipper below. In the shipper, parse the JSON so `level`/`timestamp` map correctly
-(e.g. the OTel Collector's `json_parser` operator, or Fluent Bit's `json` parser); even
-without that, Fixter's ingestion still parses the JSON body into fields.
+shipper below. In the shipper, parsing the JSON is **required**, not an optimization
+(the OTel Collector's `json_parser` operator, Fluent Bit's `json` parser, Fluentd's
+`parser` filter, Vector's `parse_json`): fields must arrive as parsed log attributes,
+because Fixter ingestion does not parse string bodies — an unparsed JSON line arrives
+as one opaque message.
 
 ## Path 2: Log shipper
 

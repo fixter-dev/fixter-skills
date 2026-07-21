@@ -1,6 +1,6 @@
 {
   "name": "fixter",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Fixter for Claude Code: OpenTelemetry instrumentation, logging review, alerting, and telemetry investigation.",
   "author": {
     "name": "Fixter"
