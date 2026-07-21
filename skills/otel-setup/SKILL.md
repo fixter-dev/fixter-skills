@@ -67,7 +67,9 @@ Detect infra:
 - `fly.toml` / `Procfile` / `railway.json` → Managed platform
 - None → bare metal / VM / local dev
 
-**A. Direct export (non-k8s default):**
+**A. Direct export — the default for everything non-k8s** (serverless, managed platform,
+bare metal / VM, local dev — every infra above except Kubernetes and Docker Compose). The
+app's SDK sends OTLP straight to Fixter:
 
     OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.fixter.dev
     OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
@@ -75,16 +77,62 @@ Detect infra:
     OTEL_SERVICE_NAME=<service-name>
     OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 
+This ships the app's **own** signals — traces, metrics, and (with a log bridge, step 4)
+logs. It does NOT collect **host metrics** (the VM's CPU/mem/disk) or **system logs the
+app doesn't emit itself** (journald, other processes' files): unlike the k8s collector
+chart, direct export runs no host-level agent. A single host that also needs those
+requires a collector running on the host — this default does not set one up, so call it
+out rather than letting the user assume host telemetry is covered.
+
 **B. OTel Collector (recommended for k8s):** install the published Fixter collector
 chart — do NOT hand-roll a collector config or DaemonSet. The chart ships pod-log
 collection, kubelet/host metrics, and an OTLP relay for your apps, all tested and
 released.
 
-    helm install fixter-collector \
-      oci://ghcr.io/fixter-dev/charts/fixter-collector \
-      --namespace fixter --create-namespace \
-      --set fixter.apiKey=<key> \
-      --set fixter.clusterName=<cluster>   # set this when you run >1 cluster
+**Preflight:** run `helm version` and `kubectl config current-context` — confirm helm
+is installed and you are pointed at the intended cluster before installing anything.
+
+**Install order matters** — but first confirm an imperative install is even the right
+mechanism here (see *"is Helm already managed?"* just below; on a GitOps/IaC-managed
+cluster you add the collector there instead). When it is, the chart reads its API key
+from a Secret in its own namespace, so the namespace and Secret must exist *before* the
+install:
+
+1. Create the namespace: `kubectl create namespace fixter`.
+2. Create the `fixter-credentials` Secret **in `-n fixter`** — use the Kubernetes
+   Secret destination in the Credentials subsection below, and create it before step 3.
+3. Install the chart, pointing it at that Secret:
+
+       helm install fixter-collector \
+         oci://ghcr.io/fixter-dev/charts/fixter-collector \
+         --namespace fixter \
+         --set fixter.existingSecret=fixter-credentials \
+         --set fixter.clusterName=<cluster>   # set this when you run >1 cluster
+
+Use `--set fixter.existingSecret=...`, **not** `--set fixter.apiKey=<key>`: a key on
+the command line lands in shell history and the pod's process list, and there is no
+way to fill that placeholder that's consistent with the single-use credential
+redemption below.
+
+**Before installing: is Helm already managed here?** The imperative `helm install` above
+is right ONLY when nothing else owns Helm releases on this cluster. Two systems make it
+wrong — an imperative release then drifts or gets reverted — and neither is fully visible
+from the app repo:
+
+- **In-cluster CD (Flux / ArgoCD)** — probe the live cluster:
+  `kubectl get crd | grep -Eq 'fluxcd|argoproj' && echo GITOPS`  (or `kubectl get helmreleases,applications -A`).
+- **Client-side IaC (Terraform `helm_release`, Pulumi, helmfile)** — invisible to that
+  probe: it tracks releases in state (CI/a laptop), not the cluster. Scan the repo for
+  `*.tf` with a `helm_release` / a `helm` provider, or `helmfile.yaml`.
+
+The infra config usually lives in a **separate repo**, so a clean app repo plus an empty
+probe still proves nothing. If both come back empty, **ask the user how Helm releases are
+managed on this cluster before you install** — don't assume imperative. If any system
+manages them, add the collector to *that* system (Flux `HelmRelease`, ArgoCD
+`Application`, Terraform `helm_release`, helmfile entry) with the same
+`fixter.existingSecret` / `fixter.clusterName` values, referencing the
+`fixter-credentials` Secret, committed to its repo (ask where it is if not this one). Run
+the imperative `helm install` only once you've confirmed nothing manages releases.
 
 Then point apps at the agent's Service DNS (the relay is on by default) — NOT
 `localhost:4318`; the agent has no hostPort:
@@ -92,6 +140,10 @@ Then point apps at the agent's Service DNS (the relay is on by default) — NOT
     OTEL_EXPORTER_OTLP_ENDPOINT=http://fixter-collector-agent.fixter.svc.cluster.local:4318
     OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
     OTEL_SERVICE_NAME=<service-name>
+
+These are **container env vars** — set them in each workload's Deployment/StatefulSet
+`spec.template.spec.containers[].env` (or your app Helm chart's values) and redeploy.
+They are not shell exports; a pod won't pick them up otherwise.
 
 Installing the chart alone already gets pod logs + k8s metrics into Fixter with zero
 app changes; the env vars above add your app's own traces/logs on top. If you'd
@@ -200,8 +252,10 @@ kubectl create secret generic fixter-credentials -n <namespace> --from-literal=F
 ```
 
 > If you install the collector chart (option B), create this Secret in **`-n fixter`**
-> (the chart reads its key from a Secret in its own namespace) and it drops in as
-> `--set fixter.existingSecret=fixter-credentials` — the chart's default key is
+> (the chart reads its key from a Secret in its own namespace), **after
+> `kubectl create namespace fixter` and before `helm install`** — this is step 2 of
+> option B's install order. It drops in as
+> `--set fixter.existingSecret=fixter-credentials`; the chart's default key is
 > `FIXTER_API_KEY`, so no `existingSecretKey` override is needed.
 
 Other platform stores follow the same pattern (`fly secrets set FIXTER_API_KEY="$(...)"`,
@@ -241,17 +295,17 @@ Choose the instrumentation library based on the detected SDK:
 ### 7. Verify the full pipeline
 
 If Fixter MCP connected, verify each signal:
-- **Spans:** `query_sql` → `SELECT count() AS value FROM spans WHERE service = '<svc>'`
-- **Logs:** `search_logs` → `service=<svc>`
+- **Spans:** `run_sql` → `SELECT count() AS value FROM spans WHERE service = '<svc>'`
+- **Logs:** `logs` with `service=<svc>` (indexed filter)
 - **Correlation:** check `trace_id` populated in returned logs
 - **Attributes:** verify `service.name`, `deployment.environment`, `service.version`
 
 If any signal missing, diagnose:
 - **spans missing** = SDK/agent issue.
 - **logs missing under `<svc>`** — before concluding export is broken, check whether the
-  logs arrived under a *different* service. Query `search_logs` with no service filter
-  for the same time window. Pod logs shipped by the collector are tagged with the k8s
-  deployment/container name (not your `OTEL_SERVICE_NAME`), and infra logs can have an
+  logs arrived under a *different* service. Call `list_services` to see what did arrive,
+  then `logs` filtered to that name. Pod logs shipped by the collector are tagged with the
+  k8s deployment/container name (not your `OTEL_SERVICE_NAME`), and infra logs can have an
   empty service. If nothing arrives under any service, then log export (step 4) isn't
   configured.
 - **correlation missing** = log bridge not active.
