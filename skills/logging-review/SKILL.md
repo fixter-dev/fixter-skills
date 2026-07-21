@@ -30,6 +30,22 @@ to flow review without one.
 logfmt-style `key=value` layout is not auto-parsed; it needs an explicit `preset: logfmt`
 format entry, so don't accept it as equivalent to JSON. Recommend JSON if not present.
 
+**Stack traces serialized?** A JSON layout alone doesn't guarantee it. Confirm the
+config serializes logged exceptions inside the record as one of the documented fields
+(the table in "Stack traces must ride inside the JSON",
+`../otel-setup/references/log-export.md`) rather than appending the raw multiline
+trace after the JSON line, which ships each frame as a separate severity-less record.
+Check fidelity too: **full traces, in the runtime's default frame order** — flag depth
+caps, encoder-configured common-frame trimming, frame-exclude patterns, shortened
+class names, and order-flipping options (`stacktrace.root=first`, `rootCauseFirst`)
+on shipped output (the JVM's inherent `... N more` elision is lossless — not a
+finding); trimmed or reordered traces break downstream grouping and root-cause
+extraction.
+Confirm cause chains survive serialization (winston needs `cause: true`; ougai drops
+`ex.cause`). Applies only when the app formats its own JSON (log shipper path) — an
+OTel log bridge serializes exceptions itself, as
+`exception.type` / `exception.message` / `exception.stacktrace`.
+
 **OTel auto-instrumentation active?** Note which signals are captured automatically.
 Do NOT duplicate these with manual log lines.
 
@@ -77,6 +93,9 @@ For each confirmed flow, use the right idiom:
 
 **Look for:**
 - Silent error paths (swallowed exceptions, silent fallbacks, failing external calls)
+- Exceptions logged without the exception object (`log.error(e.getMessage())`,
+  `logger.error(str(e))`, `console.error(err.message)`) — the stack trace and cause
+  chain are lost; pass the exception itself so the JSON encoder serializes it
 - Missing business context at decision points (approved/declined, retry exhausted)
 - Missing entity IDs in logging context (order ID, user ID, tenant ID)
 - Correlation gaps across async boundaries, thread pools, queues
