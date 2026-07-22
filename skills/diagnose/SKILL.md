@@ -172,8 +172,9 @@ Present in chat:
 
 - **Timeline:** first error → propagation → root span.
 - **Evidence:** trace ids, span names, metric deltas, representative log lines — every log/trace
-  claim carries a self-service link built per `references/evidence-links.md` (window from the
-  actual query, tz detected on the user's machine, URL shell-encoded — never hand-assembled).
+  claim carries a self-service link built per `references/evidence-links.md` (trace claims link
+  the trace page by id; log links take the window from the actual query, tz detected on the
+  user's machine, URL shell-encoded — never hand-assembled).
   Include the same links in the RCA file's Evidence section.
 - **Root-cause hypothesis** with an explicit **confidence** level.
 - **Remediation** suggestions.
