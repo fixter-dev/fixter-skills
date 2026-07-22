@@ -55,8 +55,10 @@ shipper** (Path 2) when no stable bridge exists or the project already uses a sh
 tailing pod stdout — **the app must emit structured JSON to stdout first.** Collectors
 forward stdout verbatim, so plaintext lines arrive as opaque, un-queryable strings.
 "Logs are flowing" is not the goal; queryable logs are — this is a required half of
-Path 2, not a follow-up. See log-export.md ("Path 2 requires JSON logs"). Path 1 (the
-bridge) structures logs itself and needs no format change.
+Path 2, not a follow-up. See log-export.md ("Path 2 requires JSON logs"). JSON format
+includes exceptions: stack traces must be serialized *into* the JSON record, not printed
+as raw multiline text after it (log-export.md, "Stack traces must ride inside the JSON").
+Path 1 (the bridge) structures logs itself and needs no format change.
 
 ### 5. Detect infrastructure + configure export
 
