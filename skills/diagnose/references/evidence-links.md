@@ -6,7 +6,19 @@ Fixter UI so they can verify the evidence themselves. Two link types exist:
 - **Trace view** — the claim is about a trace or its spans (a failing call chain, a slow
   span, an error inside a request): link the trace page directly.
 - **Log explorer** — the claim is about log lines (an error pattern, a specific message,
-  logs around an event): build a log-explorer URL.
+  logs around an event): a log-explorer URL.
+
+## Use the response's own link first
+
+MCP responses carry ready-made links: `get_trace` and `correlate` return `traceUrl`, and
+`logs` pages return `explorerUrl` — built server-side from the exact query that produced
+the evidence. When the response you are citing has one, copy it verbatim; if the user's
+timezone is known (stated in session, or detected as below), append `&tz=<zone>` to an
+`explorerUrl` — that is the only edit to make. Do not rebuild a URL the response already
+gave you.
+
+The recipes below are the fallback for evidence with no response link: `run_sql` results,
+a window or predicate different from the query you ran, or an older server.
 
 ## Trace links
 
