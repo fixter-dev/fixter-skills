@@ -1,9 +1,24 @@
 # Self-Service Evidence Links
 
 Every log or trace claim presented to the user should carry a clickable link into the
-Fixter log explorer so they can verify the evidence themselves.
+Fixter UI so they can verify the evidence themselves. Two link types exist:
 
-## URL template
+- **Trace view** — the claim is about a trace or its spans (a failing call chain, a slow
+  span, an error inside a request): link the trace page directly.
+- **Log explorer** — the claim is about log lines (an error pattern, a specific message,
+  logs around an event): build a log-explorer URL.
+
+## Trace links
+
+    https://app.fixter.dev/traces/<trace_id>
+
+The trace id is the path — lowercase hex, copied verbatim from the MCP result
+(`get_trace`, `correlate`, a span's `traceId`, a log's `trace_id`). No query params, no
+time window, no timezone; nothing to compute or encode:
+
+    [view trace in Fixter](https://app.fixter.dev/traces/9f31aa0c…)
+
+## Log-explorer URL template
 
     https://app.fixter.dev/logs?query=…&from=…&to=…&tz=…&columns=…&language=query
 
@@ -58,10 +73,14 @@ A link whose window misses the evidence shows "no results" and breaks trust.
 
 ## What to link
 
-| Evidence being cited | `query` | Window |
+| Evidence being cited | Link | Window |
 |---|---|---|
-| A trace | `trace_id = '<id>'` | the records' span, padded ±2-5 min |
-| An error pattern in a service | `service = '<svc>' AND level = 'ERROR'` | the query window, verbatim |
-| One log line in context | `service = '<svc>'` | padded ±5 min around the line |
+| A trace / its spans | `https://app.fixter.dev/traces/<id>` | none — the trace page scopes itself |
+| The logs of a trace | log explorer, `query` = `trace_id = '<id>'` | the records' span, padded ±2-5 min |
+| An error pattern in a service | log explorer, `query` = `service = '<svc>' AND level = 'ERROR'` | the query window, verbatim |
+| One log line in context | log explorer, `query` = `service = '<svc>'` | padded ±5 min around the line |
+
+A trace claim gets the trace link; add the logs-of-a-trace link alongside it only when the
+cited evidence is in the log lines (a message body, a stack trace) rather than the spans.
 
 Attach each link inline next to the claim it supports: `[view in Fixter](<url>)`.
