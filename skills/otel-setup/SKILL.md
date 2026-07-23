@@ -29,11 +29,17 @@ configs. Also check for existing observability (Datadog `dd-trace-*`, New Relic
 
 Verify config points to Fixter:
 - Endpoint is `https://ingest.fixter.dev` (or a collector that forwards there)
-- Auth header configured
+- Auth header configured — this only proves the header *exists*, not that the key behind
+  it is valid. A configured `${FIXTER_API_KEY}` holding a revoked, stale, placeholder, or
+  wrong-tenant value passes this check and still 401s at ingest. Key validity is proven
+  only by telemetry actually arriving (step 7), never by inspecting the key's shape.
 - Resource attributes set: `service.name`, `deployment.environment`, `service.version`
 - Log export configured (check step 4 below)
 
-Fix misconfigurations. Skip to step 5 (LLM observability).
+Fix misconfigurations, then go to step 6 (LLM observability) and step 7 (verify). Do
+**not** treat an already-present setup as done just because the config reads correctly —
+that is exactly where a stale or wrong-tenant key hides. If step 7 shows nothing
+arriving, follow its auth-failure branch (re-provision, don't chase the SDK).
 
 ### 3. Add OTel (traces + spans)
 
@@ -236,6 +242,9 @@ straight into the target, never an intermediate variable, file, or printed value
 
 ```bash
 grep -qxF '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+# Drop any existing key line first, so re-provisioning replaces rather than appending a
+# duplicate the app might read instead. No-op on first-time setup.
+[ -f .env ] && sed -i.bak '/^FIXTER_API_KEY=/d' .env && rm -f .env.bak
 curl -sf -H 'Accept: application/json' <credentialsUrl> | python3 -c "import sys,json; print('FIXTER_API_KEY=' + json.load(sys.stdin)['apiKey'])" >> .env
 ```
 
@@ -301,7 +310,19 @@ If Fixter MCP connected, verify each signal:
 - **Attributes:** verify `service.name`, `deployment.environment`, `service.version`
 
 If any signal missing, diagnose:
-- **spans missing** = SDK/agent issue.
+- **nothing at all arriving (spans AND logs both absent)** — suspect the key before the
+  SDK. A direct probe of `https://ingest.fixter.dev/v1/traces` returning `401`/`403` (or
+  simply nothing landing despite config that points correctly at Fixter) means the key is
+  being **rejected** — revoked, never activated, still a placeholder, or from a different
+  tenant — **not** that the SDK/agent is broken. On first-time setup a well-formed,
+  non-placeholder key already sitting in `.env` is **not** evidence of a valid credential;
+  validity is proven only by telemetry landing here. Whenever the Fixter MCP is connected,
+  provisioning is automatic — re-provision via the Credentials flow (§5):
+  `get_ingestion_credentials` → redeem into the **same** destination, replacing the stale
+  value → redeploy → re-verify. Never tell the user "there's no provisioning tool" or send
+  them to fixter.dev to make a key by hand while the MCP is connected; the tool is
+  `get_ingestion_credentials`.
+- **spans missing but logs arriving** = SDK/agent issue (auth is fine — logs got through).
 - **logs missing under `<svc>`** — before concluding export is broken, check whether the
   logs arrived under a *different* service. Call `list_services` to see what did arrive,
   then `logs` filtered to that name. Pod logs shipped by the collector are tagged with the
