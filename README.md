@@ -7,19 +7,9 @@ AI-native monitoring for builders. No dashboards, no alert fatigue — just sign
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - A Fixter account at [fixter.dev](https://fixter.dev)
 
-### 1. Add the marketplace
+### 1. Connect the Fixter MCP server
 
-```
-/plugin marketplace add fixter-dev/fixter-skills
-```
-
-### 2. Install the plugin
-
-```
-/plugin install fixter@fixter-skills
-```
-
-### 3. Connect the Fixter MCP server
+Run this in your terminal **before** starting Claude Code:
 
 ```
 claude mcp add --transport http fixter https://mcp.fixter.dev/mcp
@@ -27,13 +17,30 @@ claude mcp add --transport http fixter https://mcp.fixter.dev/mcp
 
 This lets the plugin provision API keys automatically — no copy-pasting secrets.
 
-After adding the MCP server, reload plugins so the skills pick it up:
+### 2. Authenticate the MCP server
+
+Start Claude Code, then run:
 
 ```
-/reload-plugins
+/mcp
 ```
 
-### 4. Run the onboarding
+Select `fixter` and sign in through the browser (same login as [fixter.dev](https://fixter.dev)).
+Onboarding needs an authenticated MCP to provision keys and verify your telemetry.
+
+### 3. Add the marketplace
+
+```
+/plugin marketplace add fixter-dev/fixter-skills
+```
+
+### 4. Install the plugin
+
+```
+/plugin install fixter@fixter-skills
+```
+
+### 5. Run the onboarding
 
 Use the `/fixter:onboard` command for a full guided walkthrough, or invoke individual skills directly:
 
