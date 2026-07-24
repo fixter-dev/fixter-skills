@@ -193,8 +193,15 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-- Exports **traces (+ metrics), NOT logs.** For logs, add a Vercel **Log Drain / OTLP
-  drain** to `https://ingest.fixter.dev/v1/logs` — `@vercel/otel` does not ship logs.
+- Exports **traces (+ metrics), NOT logs.**
+- **Traces, zero-code alternative:** a Vercel **Trace Drain** emits OpenTelemetry-format
+  traces — point one at `https://ingest.fixter.dev/v1/traces` instead of (or alongside)
+  `@vercel/otel`.
+- **Logs are a separate, non-trivial problem.** `@vercel/otel` does not ship logs, and
+  Vercel **Log Drains deliver Vercel's own `log` v1 JSON, NOT OTLP** — so a drain cannot be
+  pointed straight at Fixter's OTLP `/v1/logs`. Route the Log Drain through an OTel
+  Collector (or similar) that converts it to OTLP, or treat Vercel logs as a known gap.
+  (Drains require a Vercel Pro/Enterprise plan.)
 - **Edge runtime:** auto-instrumentation works, but **custom spans are not supported on
   the Edge runtime** (Vercel limitation) — add manual spans only in Node functions.
 - `service.name` comes from `registerOTel({ serviceName })`.
