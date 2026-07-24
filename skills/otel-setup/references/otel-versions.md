@@ -111,6 +111,20 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 
 Run with: `node --require ./tracing.js app.js`
 
+### Edge / isolate runtimes (Cloudflare Workers, Vercel Edge, Deno Deploy)
+
+`@opentelemetry/sdk-node` does NOT run on V8-isolate runtimes — it needs Node-only APIs
+(`async_hooks`, `process`, `--require`) and a long-lived process to flush spans, none of
+which exist in a request-scoped isolate. **Do not install any in-code OTel SDK here** —
+not the Node SDK, and not community isolate SDKs (e.g. `otel-cf-workers`). Standardize on
+the platform's native OTLP export.
+
+Detect via `wrangler.toml`, `@cloudflare/workers-types`, or an `export default { fetch }`
+handler with no Node server.
+
+Route these runtimes to the platform's native OTLP export (Cloudflare Workers config
+below); for Vercel Edge / Deno Deploy use the platform's equivalent OTLP export/drain.
+
 ---
 
 ## PHP
