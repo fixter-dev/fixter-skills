@@ -166,15 +166,19 @@ destinations = ["fixter-logs"]     # captures console.log + system logs
 - Timing caveat: the runtime fuzzes sub-request timing (Spectre mitigation), so span
   durations are approximate.
 
-#### Vercel (Node + Edge) → `@vercel/otel`
+#### Vercel (Node + Edge)
 
-Vercel's supported path is the in-code `@vercel/otel` package (NOT `sdk-node`):
+Two ways to get Vercel **traces** to Fixter — pick either (or run both):
+
+**Option A — `@vercel/otel` (in-code SDK).** Vercel's documented instrumentation path (NOT
+`sdk-node`): richer spans (Next.js auto-instrumentation, fetch context propagation, custom
+spans in Node) and you set `service.name` in code — best for Fixter grouping.
 
 ```
 npm i @opentelemetry/api @vercel/otel
 ```
 
-Create `instrumentation.ts` in the project root (or `src/` on Next.js):
+`instrumentation.ts` (project root, or `src/` on Next.js):
 
 ```ts
 import { registerOTel } from '@vercel/otel'
@@ -184,7 +188,7 @@ export function register() {
 }
 ```
 
-Point it at Fixter with the standard OTLP env vars, set as Vercel **project env vars**
+Point it at Fixter with standard OTLP env vars, set as Vercel **project env vars**
 (`@vercel/otel` defers to the OpenTelemetry env-var spec):
 
 ```
@@ -193,20 +197,25 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-- Exports **traces (+ metrics), NOT logs.**
-- **Traces, zero-code alternative:** a Vercel **Trace Drain** emits OpenTelemetry-format
-  traces — point one at `https://ingest.fixter.dev/v1/traces` instead of (or alongside)
-  `@vercel/otel`.
+The app reads the key — store `FIXTER_API_KEY` as a Vercel env var / secret.
+
+**Option B — Vercel Trace Drain (zero-code).** A custom-endpoint Trace Drain forwards
+OTLP/HTTP traces with nothing in your app bundle — point it at
+`https://ingest.fixter.dev/v1/traces` (OTLP/HTTP only, JSON or protobuf), with the auth
+header set in the drain config; drain-side sampling rules replace `head_sampling_rate`.
+Caveat: Vercel sets a **generic `service.name` (e.g. `vercel-function`)** and adds
+`vercel.projectId` / `vercel.deploymentId` resource attributes — so Fixter groups by those,
+not a name you choose. Use Option A if `service.name` grouping matters. Pro/Enterprise plan
+only.
+
+Both options carry **traces (+ metrics on Option A), NOT logs:**
+
 - **Logs are a separate, non-trivial problem.** `@vercel/otel` does not ship logs, and
   Vercel **Log Drains deliver Vercel's own `log` v1 JSON, NOT OTLP** — so a drain cannot be
   pointed straight at Fixter's OTLP `/v1/logs`. Route the Log Drain through an OTel
   Collector (or similar) that converts it to OTLP, or treat Vercel logs as a known gap.
-  (Drains require a Vercel Pro/Enterprise plan.)
 - **Edge runtime:** auto-instrumentation works, but **custom spans are not supported on
   the Edge runtime** (Vercel limitation) — add manual spans only in Node functions.
-- `service.name` comes from `registerOTel({ serviceName })`.
-- The app reads the key here (unlike Cloudflare's native export) — store `FIXTER_API_KEY`
-  as a Vercel env var / secret.
 
 #### Deno / Deno Deploy → native runtime OTel (zero code)
 
