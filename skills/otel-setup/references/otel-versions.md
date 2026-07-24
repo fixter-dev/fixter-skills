@@ -111,6 +111,129 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 
 Run with: `node --require ./tracing.js app.js`
 
+### Edge / isolate runtimes (Cloudflare Workers, Vercel, Deno)
+
+`@opentelemetry/sdk-node` (the Node auto-instrumentation SDK) does NOT run on V8-isolate /
+edge runtimes — it needs Node-only APIs (`async_hooks`, `process`, `--require`) and a
+long-lived process to flush spans, none of which exist in a request-scoped isolate. But
+**each platform has its own OTel path** — use the one below, never `sdk-node`. A
+platform-specific in-code SDK (e.g. Vercel's `@vercel/otel`) is fine; a generic Node
+auto-SDK is not.
+
+Detect: `wrangler.toml` / `@cloudflare/workers-types` → Cloudflare Workers; `@vercel/otel`,
+`vercel.json`, or Next.js deployed on Vercel → Vercel; `deno.json`/`deno.jsonc` or Deno
+Deploy → Deno.
+
+#### Cloudflare Workers → native platform export (zero code)
+
+Traces and logs are configured
+**separately** — each needs its own `[observability.*]` block AND its own dashboard
+destination. One block does not cover both; omit the logs block and logs are silently
+dropped.
+
+Cloudflare wants a **full signal-specific URL** per destination (not a base URL). In the
+dashboard, create two telemetry destinations, both with header
+`Authorization: Bearer <FIXTER_API_KEY>`:
+
+| Destination name | Endpoint URL |
+|---|---|
+| `fixter-traces` | `https://ingest.fixter.dev/v1/traces` |
+| `fixter-logs` | `https://ingest.fixter.dev/v1/logs` |
+
+Then reference each **by name** in `wrangler.toml`:
+
+```toml
+[observability.traces]
+enabled = true
+destinations = ["fixter-traces"]   # the dashboard destination NAME, not a URL
+head_sampling_rate = 1              # capture all; lower under high volume (see Sampling in SKILL.md)
+
+[observability.logs]
+enabled = true
+destinations = ["fixter-logs"]     # captures console.log + system logs
+```
+
+- With both blocks, spans and `console.log`/system logs reach Fixter and trace↔log
+  correlation works. Metrics are not yet supported.
+- `service.name` derives from the Worker script name — **name the Worker after the
+  service** so Fixter groups it correctly.
+- **The key lives ONLY in the dashboard destination header.** The platform exports the
+  telemetry, so the Worker never reads the key — do NOT create a `wrangler secret`, an env
+  var, or a `wrangler.toml` entry for it (a `wrangler secret` here would sit unused). For
+  the skill's credentials step (§5), the storage destination is **Manual (browser)**:
+  reveal the key once and paste it into the `Authorization` header of both destinations.
+- Status: beta; billing begins 2026-03-01 ($0.05 / M events beyond 10M/mo included).
+- Timing caveat: the runtime fuzzes sub-request timing (Spectre mitigation), so span
+  durations are approximate.
+
+#### Vercel (Node + Edge)
+
+Two ways to get Vercel **traces** to Fixter — pick either (or run both):
+
+**Option A — `@vercel/otel` (in-code SDK).** Vercel's documented instrumentation path (NOT
+`sdk-node`): richer spans (Next.js auto-instrumentation, fetch context propagation, custom
+spans in Node) and you set `service.name` in code — best for Fixter grouping.
+
+```
+npm i @opentelemetry/api @vercel/otel
+```
+
+`instrumentation.ts` (project root, or `src/` on Next.js):
+
+```ts
+import { registerOTel } from '@vercel/otel'
+
+export function register() {
+  registerOTel({ serviceName: '<service-name>' })
+}
+```
+
+Point it at Fixter with standard OTLP env vars, set as Vercel **project env vars**
+(`@vercel/otel` defers to the OpenTelemetry env-var spec):
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.fixter.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+```
+
+The app reads the key — store `FIXTER_API_KEY` as a Vercel env var / secret.
+
+**Option B — Vercel Trace Drain (zero-code).** A custom-endpoint Trace Drain forwards
+OTLP/HTTP traces with nothing in your app bundle — point it at
+`https://ingest.fixter.dev/v1/traces` (OTLP/HTTP only, JSON or protobuf), with the auth
+header set in the drain config; drain-side sampling rules replace `head_sampling_rate`.
+Caveat: Vercel sets a **generic `service.name` (e.g. `vercel-function`)** and adds
+`vercel.projectId` / `vercel.deploymentId` resource attributes — so Fixter groups by those,
+not a name you choose. Use Option A if `service.name` grouping matters. Pro/Enterprise plan
+only.
+
+Both options carry **traces (+ metrics on Option A), NOT logs:**
+
+- **Logs are a separate, non-trivial problem.** `@vercel/otel` does not ship logs, and
+  Vercel **Log Drains deliver Vercel's own `log` v1 JSON, NOT OTLP** — so a drain cannot be
+  pointed straight at Fixter's OTLP `/v1/logs`. Route the Log Drain through an OTel
+  Collector (or similar) that converts it to OTLP, or treat Vercel logs as a known gap.
+- **Edge runtime:** auto-instrumentation works, but **custom spans are not supported on
+  the Edge runtime** (Vercel limitation) — add manual spans only in Node functions.
+
+#### Deno / Deno Deploy → native runtime OTel (zero code)
+
+Deno ships built-in OpenTelemetry (stable) — no install. Enable it and point at Fixter
+via env vars:
+
+```
+OTEL_DENO=true
+OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.fixter.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_SERVICE_NAME=<service-name>
+```
+
+- Exports **traces, metrics, AND logs** in one shot — `console.*` calls become OTLP log
+  records automatically, so trace↔log correlation works with no extra config.
+- Defaults if unset: protocol `http/protobuf`, endpoint `http://localhost:4318`.
+
 ---
 
 ## PHP
