@@ -122,8 +122,48 @@ the platform's native OTLP export.
 Detect via `wrangler.toml`, `@cloudflare/workers-types`, or an `export default { fetch }`
 handler with no Node server.
 
-Route these runtimes to the platform's native OTLP export (Cloudflare Workers config
-below); for Vercel Edge / Deno Deploy use the platform's equivalent OTLP export/drain.
+**Cloudflare Workers → native OTLP export (zero code).** Traces and logs are configured
+**separately** — each needs its own `[observability.*]` block AND its own dashboard
+destination. One block does not cover both; omit the logs block and logs are silently
+dropped.
+
+Cloudflare wants a **full signal-specific URL** per destination (not a base URL). In the
+dashboard, create two telemetry destinations, both with header
+`Authorization: Bearer <FIXTER_API_KEY>`:
+
+| Destination name | Endpoint URL |
+|---|---|
+| `fixter-traces` | `https://ingest.fixter.dev/v1/traces` |
+| `fixter-logs` | `https://ingest.fixter.dev/v1/logs` |
+
+Then reference each **by name** in `wrangler.toml`:
+
+```toml
+[observability.traces]
+enabled = true
+destinations = ["fixter-traces"]   # the dashboard destination NAME, not a URL
+head_sampling_rate = 1              # capture all; lower under high volume (see Sampling in SKILL.md)
+
+[observability.logs]
+enabled = true
+destinations = ["fixter-logs"]     # captures console.log + system logs
+```
+
+- With both blocks, spans and `console.log`/system logs reach Fixter and trace↔log
+  correlation works. Metrics are not yet supported.
+- `service.name` derives from the Worker script name — **name the Worker after the
+  service** so Fixter groups it correctly.
+- **The key lives ONLY in the dashboard destination header.** The platform exports the
+  telemetry, so the Worker never reads the key — do NOT create a `wrangler secret`, an env
+  var, or a `wrangler.toml` entry for it (a `wrangler secret` here would sit unused). For
+  the skill's credentials step (§5), the storage destination is **Manual (browser)**:
+  reveal the key once and paste it into the `Authorization` header of both destinations.
+- Status: beta; billing begins 2026-03-01 ($0.05 / M events beyond 10M/mo included).
+- Timing caveat: the runtime fuzzes sub-request timing (Spectre mitigation), so span
+  durations are approximate.
+
+For Vercel Edge / Deno Deploy, use the platform's equivalent OTLP export/drain rather
+than an in-code Node SDK.
 
 ---
 
