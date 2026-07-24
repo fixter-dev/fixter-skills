@@ -111,18 +111,22 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment=<env>,service.version=<ver>
 
 Run with: `node --require ./tracing.js app.js`
 
-### Edge / isolate runtimes (Cloudflare Workers, Vercel Edge, Deno Deploy)
+### Edge / isolate runtimes (Cloudflare Workers, Vercel, Deno)
 
-`@opentelemetry/sdk-node` does NOT run on V8-isolate runtimes — it needs Node-only APIs
-(`async_hooks`, `process`, `--require`) and a long-lived process to flush spans, none of
-which exist in a request-scoped isolate. **Do not install any in-code OTel SDK here** —
-not the Node SDK, and not community isolate SDKs (e.g. `otel-cf-workers`). Standardize on
-the platform's native OTLP export.
+`@opentelemetry/sdk-node` (the Node auto-instrumentation SDK) does NOT run on V8-isolate /
+edge runtimes — it needs Node-only APIs (`async_hooks`, `process`, `--require`) and a
+long-lived process to flush spans, none of which exist in a request-scoped isolate. But
+**each platform has its own OTel path** — use the one below, never `sdk-node`. A
+platform-specific in-code SDK (e.g. Vercel's `@vercel/otel`) is fine; a generic Node
+auto-SDK is not.
 
-Detect via `wrangler.toml`, `@cloudflare/workers-types`, or an `export default { fetch }`
-handler with no Node server.
+Detect: `wrangler.toml` / `@cloudflare/workers-types` → Cloudflare Workers; `@vercel/otel`,
+`vercel.json`, or Next.js deployed on Vercel → Vercel; `deno.json`/`deno.jsonc` or Deno
+Deploy → Deno.
 
-**Cloudflare Workers → native OTLP export (zero code).** Traces and logs are configured
+#### Cloudflare Workers → native platform export (zero code)
+
+Traces and logs are configured
 **separately** — each needs its own `[observability.*]` block AND its own dashboard
 destination. One block does not cover both; omit the logs block and logs are silently
 dropped.
@@ -162,8 +166,57 @@ destinations = ["fixter-logs"]     # captures console.log + system logs
 - Timing caveat: the runtime fuzzes sub-request timing (Spectre mitigation), so span
   durations are approximate.
 
-For Vercel Edge / Deno Deploy, use the platform's equivalent OTLP export/drain rather
-than an in-code Node SDK.
+#### Vercel (Node + Edge) → `@vercel/otel`
+
+Vercel's supported path is the in-code `@vercel/otel` package (NOT `sdk-node`):
+
+```
+npm i @opentelemetry/api @vercel/otel
+```
+
+Create `instrumentation.ts` in the project root (or `src/` on Next.js):
+
+```ts
+import { registerOTel } from '@vercel/otel'
+
+export function register() {
+  registerOTel({ serviceName: '<service-name>' })
+}
+```
+
+Point it at Fixter with the standard OTLP env vars, set as Vercel **project env vars**
+(`@vercel/otel` defers to the OpenTelemetry env-var spec):
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.fixter.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+```
+
+- Exports **traces (+ metrics), NOT logs.** For logs, add a Vercel **Log Drain / OTLP
+  drain** to `https://ingest.fixter.dev/v1/logs` — `@vercel/otel` does not ship logs.
+- **Edge runtime:** auto-instrumentation works, but **custom spans are not supported on
+  the Edge runtime** (Vercel limitation) — add manual spans only in Node functions.
+- `service.name` comes from `registerOTel({ serviceName })`.
+- The app reads the key here (unlike Cloudflare's native export) — store `FIXTER_API_KEY`
+  as a Vercel env var / secret.
+
+#### Deno / Deno Deploy → native runtime OTel (zero code)
+
+Deno ships built-in OpenTelemetry (stable) — no install. Enable it and point at Fixter
+via env vars:
+
+```
+OTEL_DENO=true
+OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.fixter.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${FIXTER_API_KEY}
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_SERVICE_NAME=<service-name>
+```
+
+- Exports **traces, metrics, AND logs** in one shot — `console.*` calls become OTLP log
+  records automatically, so trace↔log correlation works with no extra config.
+- Defaults if unset: protocol `http/protobuf`, endpoint `http://localhost:4318`.
 
 ---
 
