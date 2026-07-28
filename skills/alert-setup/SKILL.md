@@ -37,7 +37,7 @@ service):
 - **n = 0 (no data older than 24h):** the tenant is too new to calibrate. Alert setup
   is **optional right now** — tell the user the honest tradeoff (thresholds set today
   will be guesses and likely noisy), and offer two choices via `AskUserQuestion`:
-  1. **Defer (recommended)** — come back after ~a week of data for calibrated alerts.
+  1. **Defer (recommended)** — come back after ~a day of data for calibrated alerts.
      Write `{"alertSetup": {"deferred": true, "reason": "insufficient-data"}}` to
      `.fixter/onboarding-state.json` and stop here.
   2. **Safety-net only** — create just the rules that need **no** baseline: OOM > 1,
@@ -122,7 +122,7 @@ then calibrate:
    Latency: 2-3x observed p95.
 3. Only fall back to raw defaults when the service has no data at all — then mark
    the rule **uncalibrated** in the presentation and tell the user to re-run alert
-   setup after a week of data.
+   setup after a day of data.
 4. **Check that duration means processing time.** An operation whose observed p95/max
    dwarfs the service's request latency (hours vs minutes) may be a measurement span
    with a backdated start timestamp — duration anchored to an earlier business event

@@ -65,7 +65,7 @@ Alert setup checks data maturity first: good thresholds need a real baseline, so
 telemetry is only minutes old (common right after step 3's short soak) the skill will
 recommend **deferring** rather than calibrating against noise. That's expected, not a
 failure. If it writes `alertSetup.deferred`, tell the user their instrumentation is
-working and to re-run `/fixter:onboard` after ~a week of data for well-calibrated
+working and to re-run `/fixter:onboard` after ~a day of data for well-calibrated
 alerts (or take the safety-net-only rules now).
 
 ## Step 6: P1 alert expansion
