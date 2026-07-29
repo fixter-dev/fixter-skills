@@ -97,7 +97,7 @@ When all steps are complete, assemble a summary from `.fixter/onboarding-state.j
     [Pending alerts (P1):
       • <pending rule names>]
 
-    Notifications: <channel>
+    Notifications: <notificationChannelIds, or "none — rules evaluate but don't notify">
 
     Next steps:
       • Monitor P0 alerts for 1 week

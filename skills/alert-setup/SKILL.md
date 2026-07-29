@@ -67,13 +67,18 @@ Check sources in order:
 
 ### 4. Notification channels
 
-Ask via `AskUserQuestion`: "Where should alert notifications go?"
-- Slack (channel name or webhook URL)
-- Webhook (endpoint URL)
-- Both
+Call `list_investigation_alert_channels` to get the tenant's configured Slack channels.
+Present the real channels and ask via `AskUserQuestion` which one this project's alerts
+should go to.
 
-Guide user to configure channels in Fixter dashboard (Settings → Notification Channels).
-Rules evaluate without channels but won't notify until configured.
+- **Channels returned:** ask the user to pick one (or several). Keep the chosen
+  `channelId` values — step 8 passes them to `save_alert_rule`.
+- **None returned:** no channel is configured yet. An admin can add one with
+  `add_investigation_alert_channel` (the Slack channel id, e.g. `C0123456789` — found in
+  Slack via channel name → View channel details). If the user isn't an admin or the Slack
+  app isn't installed, point them at Slack setup (`/setup/slack/`), and note that rules
+  created now will evaluate but not notify until a channel exists — they can be rerouted
+  later with `set_alert_rule_delivery` without touching the rule spec.
 
 ### 5. Suggest rules — tiered
 
@@ -214,9 +219,19 @@ window length, and consecutive windows — or, for anomaly rules, the z-score th
 and direction. The backtest line shows the evidence behind the threshold — or says
 "uncalibrated (no data yet)".
 
-After user approval, call `save_alert_rule` per rule (omit `ruleId` to create). It
-re-validates server-side: if it returns `problems[]` instead of the saved rule, fix
-the spec and resave. Confirm with rule IDs and the same gate summaries.
+After user approval, call `save_alert_rule` per rule — omit `ruleId` to create, and pass
+the `channelIds` chosen in step 4 so the rule is routed from birth. It re-validates
+server-side: if it returns `problems[]` instead of the saved rule, fix the spec and
+resave. Confirm with rule IDs and the same gate summaries.
+
+`channelIds` is **create-only**. To change routing on a rule that already exists — a P1
+rule added later, a re-run of this skill, or any rule you didn't just create — use
+`set_alert_rule_delivery(ruleId, channelIds)`. Passing `channelIds` to `save_alert_rule`
+alongside a `ruleId` is rejected with `CHANNEL_IDS_ON_UPDATE`.
+
+Updating a rule via `save_alert_rule` is a **whole-object replace, not a merge**: fetch
+the current spec with `get_alert_rules` and re-send it complete with your one change, or
+omitted fields — `description` especially — are cleared.
 
 ### 8a. Visual elicitation is the exception, not the routine
 
@@ -254,7 +269,10 @@ Append to `.fixter/onboarding-state.json`:
         "completed": true,
         "rulesCreated": [{ "id": "<uuid>", "name": "<name>", "tier": "P0" }],
         "pendingRules": [{ "name": "<name>", "tier": "P1" }],
-        "notificationChannel": "<channel>",
+        "notificationChannelIds": ["<channelId>"],
         "timestamp": "<ISO>"
       }
     }
+
+Storing real ids rather than a display name means a later run of the skill can reroute
+rules with `set_alert_rule_delivery` without re-asking.
