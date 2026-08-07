@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Validates a dashboard definition and prints its /chart URL.
-// Usage: node mint.mjs <definition.json> [--host <origin>] [--range 14d] [--refresh 0]
 
 import { readFileSync } from 'node:fs';
 import zlib from 'node:zlib';
@@ -139,8 +137,6 @@ panels.forEach((panel, i) => {
     );
   }
   const seriesExpr = new RegExp(`,\\s*([^,]+?)\\s+AS\\s+${panel.series}\\b`, 'i').exec(sql)?.[1] ?? '';
-  // A column that is always present stays safe through replace()/substring(); a dotted
-  // attribute in the expression means it can be missing, and missing renders as "null".
   const seriesAlwaysSet = NEVER_NULL_SERIES.test(seriesExpr) && !/\w+\.\w+/.test(seriesExpr);
   if (panel.series && !seriesAlwaysSet && !/IS\s+NOT\s+NULL|coalesce\s*\(/i.test(sql)) {
     warn(
