@@ -186,6 +186,26 @@ Then **offer** (don't auto-write) to save a structured RCA to
 contents that may include PII or secrets). Template sections: Summary, Scope (service/env/window),
 Timeline, Evidence, Root cause, Confidence, Remediation.
 
+### When a chart says it better than a paragraph
+
+Some findings are shapes, not numbers, and describing a shape in prose asks the user to rebuild
+it in their head. When the evidence is one of these, offer a dashboard link instead of — or
+alongside — the paragraph, using the `composing-dashboards` skill:
+
+- **"It started at 14:20"** — a rate or latency line makes the onset, and whether it was a step
+  or a ramp, obvious at a glance.
+- **"It's one instance / customer / endpoint"** — a per-entity split shows the outlier and shows
+  that the others are fine, which prose can only assert.
+- **"It's still happening"** — a live panel the user can re-open beats a number that was true
+  when you ran the query.
+- **"It correlates with the deploy / the traffic peak / memory pressure"** — two panels on one
+  time axis let the user judge the correlation rather than take your word for it.
+
+A single number, a yes/no answer, or a one-off lookup stays prose — a dashboard is something the
+user has to trust and come back to, so mint one only when it will be looked at more than once.
+Hand over the host along with the link, since a link only works against the backend holding its
+data.
+
 ## Guardrails
 
 - **Read-only:** every tool queries, never mutates — but still scope every query to the confirmed
