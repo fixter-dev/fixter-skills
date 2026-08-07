@@ -15,9 +15,10 @@ const CHART_KINDS = ['timeseries', 'bars', 'toplist'];
 const MAGNITUDE_UNIT = /^(gib|mib|kib|tib|gb|mb|kb|tb|cores?|usd)$/i;
 const COUNTER = /metric_name\s*(=|IN)\s*\(?\s*'[^']*(_total|event_)/i;
 const NEVER_NULL_SERIES = /\b(metric_name|service|level|type)\b/i;
+const DEFAULT_HOST = 'https://app.fixter.dev';
 const HOSTS = {
+  fixter: DEFAULT_HOST,
   monitoring: 'https://app.monitoring.internal.fixter.dev',
-  prod: 'https://app.fixter.dev',
   local: 'http://localhost:5173',
 };
 
@@ -35,7 +36,7 @@ for (let i = 0; i < args.length; i += 1) {
 const flag = (name, fallback) => flags[name] ?? fallback;
 const path = positional[0];
 if (!path) {
-  console.error('usage: node mint.mjs <definition.json> [--host monitoring|prod|local|<origin>] [--range 14d] [--refresh 0]');
+  console.error('usage: node mint.mjs <definition.json> [--host <origin>|fixter|monitoring|local] [--range 14d] [--refresh 0]');
   process.exit(2);
 }
 
@@ -275,7 +276,7 @@ const sizes = panels
   })
   .join(',');
 
-const hostArg = flag('host', 'monitoring');
+const hostArg = flag('host', 'fixter');
 const origin = HOSTS[hostArg] ?? hostArg;
 const packed = 'z.' + zlib.deflateRawSync(JSON.stringify(definition), { level: 9 }).toString('base64url');
 const query = new URLSearchParams();

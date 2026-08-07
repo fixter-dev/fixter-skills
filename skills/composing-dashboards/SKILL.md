@@ -51,7 +51,7 @@ list, say so when you hand it over.
 
 ## 2. Ground every query before it becomes a panel
 
-Run each query through `mcp__fixter-monitoring__run_sql` and read the rows. You are
+Run each query through the Fixter MCP's `run_sql` and read the rows. You are
 checking four things, and each one changes what you build:
 
 - **Does it return anything at all?** An empty panel is indistinguishable from a broken one.
@@ -252,9 +252,10 @@ That absence is itself information.
 
 **Every dashboard declares an `env` variable, and every panel's SQL filters on it.**
 
-Production and monitoring telemetry share a ClickHouse tenant. An unscoped panel blends
+Every environment you send telemetry from lands in one tenant. An unscoped panel blends
 them into one number that is wrong in a way nobody can see — no error, no empty panel,
-just a total that is quietly the sum of two worlds. `mint.mjs` refuses to mint without it.
+just a total that is quietly the sum of staging and production. `mint.mjs` refuses to
+mint without it.
 
 ```json
 { "name": "env", "label": "Environment",
@@ -274,7 +275,8 @@ and `mint.mjs` rejects it the same way.
 ## 8. Mint, then look at it
 
 ```
-node ~/.claude/skills/composing-dashboards/mint.mjs my-dashboard.json --host monitoring
+node <skill-dir>/mint.mjs my-dashboard.json            # https://app.fixter.dev
+node <skill-dir>/mint.mjs my-dashboard.json --host <origin>   # any other deployment
 ```
 
 It validates roles, grid rows, row heights, time bounds, variable references and

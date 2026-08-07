@@ -1,16 +1,19 @@
 # Chart-link reference
 
-The renderer lives at `/chart` in `self-service`. A dashboard has no database row and
-no editor: the whole definition is deflate-compressed into the URL fragment. Two hosts
-serve it, and they read different backends:
+A dashboard has no database row and no editor: the whole definition is
+deflate-compressed into the URL fragment and rendered by `/chart`.
 
-| Host | Backend | Has |
-|---|---|---|
-| `https://app.monitoring.internal.fixter.dev` | `api.monitoring.internal.fixter.dev` | agent/infra telemetry — LLM spans, Doris, collector |
-| `https://app.fixter.dev` | `api.fixter.dev` | customer-facing production data |
-| `http://localhost:5173` | whatever `API_PROXY_TARGET` points at | — |
+`mint.mjs` targets `https://app.fixter.dev` by default. Pass `--host` for any other
+deployment:
 
-A link only works on the host whose backend holds the data. Say which one in the reply.
+| `--host` | Renders at |
+|---|---|
+| *(omitted)* | `https://app.fixter.dev` |
+| `<origin>` | that origin, e.g. a self-hosted or internal deployment |
+| `local` | `http://localhost:5173` |
+
+A link only works against the backend that holds its data, so name the host when you
+hand the link over.
 
 ## Definition schema
 
@@ -72,8 +75,8 @@ when the query returns something unexpected.
 ## SQL
 
 QuerySQL over ClickHouse, MySQL-ish. Sources: `spans`, `logs`, `metrics`. Run every
-query through `mcp__fixter-monitoring__run_sql` before it goes in a panel; discover
-fields with `mcp__fixter-monitoring__describe_schema`.
+query through the Fixter MCP's `run_sql` before it goes in a panel; discover
+fields with `describe_schema`.
 
 Placeholders, substituted per render:
 
