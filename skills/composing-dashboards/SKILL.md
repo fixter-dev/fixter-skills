@@ -277,6 +277,7 @@ and `mint.mjs` rejects it the same way.
 ```
 node <skill-dir>/mint.mjs my-dashboard.json                  # https://app.fixter.dev
 node <skill-dir>/mint.mjs my-dashboard.json --host <origin>  # any other deployment
+FIXTER_HOST=<origin> node <skill-dir>/mint.mjs my-dashboard.json   # or set it once
 ```
 
 It validates roles, grid rows, row heights, time bounds, variable references and

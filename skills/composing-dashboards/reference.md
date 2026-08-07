@@ -6,11 +6,15 @@ deflate-compressed into the URL fragment and rendered by `/chart`.
 `mint.mjs` targets `https://app.fixter.dev` by default. Pass `--host` for any other
 deployment:
 
-| `--host` | Renders at |
+| Host comes from | Renders at |
 |---|---|
-| *(omitted)* | `https://app.fixter.dev` |
-| `<origin>` | that origin, e.g. a self-hosted or internal deployment |
-| `local` | `http://localhost:5173` |
+| `--host <origin>` | that origin — a self-hosted or internal deployment |
+| `--host local` | `http://localhost:5173` |
+| `$FIXTER_HOST` | that origin (or `local`), when `--host` is absent |
+| neither | `https://app.fixter.dev` |
+
+Export `FIXTER_HOST` once if you always mint against the same non-default deployment;
+`--host` still overrides it per invocation.
 
 A link only works against the backend that holds its data, so name the host when you
 hand the link over.

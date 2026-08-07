@@ -29,9 +29,11 @@ const SCALED_TO_PERCENT = /100\s*\*|\*\s*100|error_rate\s*\(/i;
 const METRICS_SCOPE = /\b(service|k8s\.namespace\.name)\s*(=|IN\s*\()/i;
 const LEVEL_AGGREGATE = /\b(avg|max|sum)\s*\(\s*value\s*\)/i;
 const DOTTED_ATTRIBUTE = /\w+\.\w+/;
-const USAGE =
-  'usage: node mint.mjs <definition.json> [--host <origin>|local] [--range 14d] [--refresh 0]';
+const HOST_ENV_VAR = 'FIXTER_HOST';
 const DEFAULT_HOST = 'https://app.fixter.dev';
+const USAGE =
+  'usage: node mint.mjs <definition.json> [--host <origin>|local] [--range 14d] [--refresh 0]\n' +
+  `       host: --host, then $${HOST_ENV_VAR}, then ${DEFAULT_HOST}`;
 const HOSTS = {
   fixter: DEFAULT_HOST,
   local: 'http://localhost:5173',
@@ -467,11 +469,16 @@ function encodeDefinition(source, panels) {
   };
 }
 
+function resolveOrigin(hostFlag) {
+  const requested = hostFlag ?? process.env[HOST_ENV_VAR] ?? 'fixter';
+  return HOSTS[requested] ?? requested;
+}
+
 function buildUrl(definition, packed, panels, flags) {
   const flag = (name, fallback) => {
     return flags[name] ?? fallback;
   };
-  const origin = HOSTS[flag('host', 'fixter')] ?? flag('host', 'fixter');
+  const origin = resolveOrigin(flags.host);
   const query = new URLSearchParams();
   if (definition.title) {
     query.set('title', definition.title);
