@@ -26,7 +26,7 @@ compose — whenever the request leaves any of these open:
 
 | Unstated | Ask |
 |---|---|
-| Which environment | "Production, or the monitoring cluster?" — decides the host *and* the data |
+| Which environment | "Production, or staging?" — decides the host *and* the data |
 | What decision it serves | "Is this a weekly review, or something you'll watch during an incident?" — sets the range and refresh |
 | The breakdown that matters | "Broken down by model, by flow, by customer?" — decides series vs selectors |
 | A limit worth drawing | "Is there a budget or SLO line to mark?" |
