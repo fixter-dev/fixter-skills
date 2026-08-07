@@ -50,6 +50,7 @@ Use the `/fixter:onboard` command for a full guided walkthrough, or invoke indiv
 | `/fixter:logging-review` | Reviews your logging practices and suggests improvements for observability |
 | `/fixter:alert-setup` | Configures alerting rules for your services |
 | `/fixter:diagnose` | Queries your telemetry to investigate issues — searches logs and correlates logs, spans, and metrics to find root cause |
+| `/fixter:composing-dashboards` | Builds a shareable dashboard link from your telemetry — grounds every query in real rows, then encodes the whole definition into the URL |
 
 ### What to expect
 
