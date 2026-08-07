@@ -18,7 +18,6 @@ const NEVER_NULL_SERIES = /\b(metric_name|service|level|type)\b/i;
 const DEFAULT_HOST = 'https://app.fixter.dev';
 const HOSTS = {
   fixter: DEFAULT_HOST,
-  monitoring: 'https://app.monitoring.internal.fixter.dev',
   local: 'http://localhost:5173',
 };
 
@@ -36,7 +35,7 @@ for (let i = 0; i < args.length; i += 1) {
 const flag = (name, fallback) => flags[name] ?? fallback;
 const path = positional[0];
 if (!path) {
-  console.error('usage: node mint.mjs <definition.json> [--host <origin>|fixter|monitoring|local] [--range 14d] [--refresh 0]');
+  console.error('usage: node mint.mjs <definition.json> [--host <origin>|local] [--range 14d] [--refresh 0]');
   process.exit(2);
 }
 

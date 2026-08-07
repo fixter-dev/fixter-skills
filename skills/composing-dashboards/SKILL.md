@@ -58,7 +58,7 @@ checking four things, and each one changes what you build:
 - **How many series?** Over ~6, fold the tail into `other` or move the dimension into a selector. Never let a legend run past 8.
 - **How many instances report it?** `count_distinct(source_instance_id)`. More than one changes how you must aggregate a counter (§3), and often means the per-instance split is the panel you actually wanted.
 - **Is it sparse?** Count buckets with rows against buckets in the window, per series. Gaps decide the form (§3).
-- **Does the dimension exist where you think, on enough rows to filter by?** In Fixter's spans a dimension often lives on a *sibling* span, not the one carrying the measure — `flow` and `customer_id` are on `time_to_answer`, cost is on `ClaudeAgent.query`. Join them through `trace_id IN (SELECT trace_id FROM spans WHERE …)`. Measure coverage with an **aliased** `GROUP BY` — grouping by a bare dynamic attribute can silently collapse to one wrong group, and believing it is how a perfectly good `customer_id` got written off as unpopulated and its selector deleted. Cross-check the group count against `count_distinct(x)` before you trust either.
+- **Does the dimension exist where you think, on enough rows to filter by?** A dimension often lives on a *sibling* span rather than the one carrying the measure — the request span holds `customer_id` while the cost or duration you want sits on a child span. Join them through `trace_id IN (SELECT trace_id FROM spans WHERE …)`. Measure coverage with an **aliased** `GROUP BY` — grouping by a bare dynamic attribute can silently collapse to one wrong group, and believing it is how a perfectly good `customer_id` got written off as unpopulated and its selector deleted. Cross-check the group count against `count_distinct(x)` before you trust either.
 
 If a requested dimension genuinely isn't in the data, say so and drop the panel. A
 panel answering a nearby question the reader didn't ask is worse than no panel — they
@@ -275,8 +275,8 @@ and `mint.mjs` rejects it the same way.
 ## 8. Mint, then look at it
 
 ```
-node <skill-dir>/mint.mjs my-dashboard.json            # https://app.fixter.dev
-node <skill-dir>/mint.mjs my-dashboard.json --host <origin>   # any other deployment
+node <skill-dir>/mint.mjs my-dashboard.json                  # https://app.fixter.dev
+node <skill-dir>/mint.mjs my-dashboard.json --host <origin>  # any other deployment
 ```
 
 It validates roles, grid rows, row heights, time bounds, variable references and
@@ -286,7 +286,7 @@ warnings and decide.
 Structure is all it checks. Empty panels, a legend of twelve near-identical model
 names, a stat reading `NaN` — all of these mint cleanly. So verify the content too:
 
-- If you can render the page, open it and look at it. Locally that means a dev server on a port Auth0 already allows as a callback (5173/5174), proxied at the right backend — `API_PROXY_TARGET=https://api.monitoring.internal.fixter.dev npx vite --port 5174`. A fresh port fails the callback check, and a preview-mode server serves mock rows that look plausible and are not your data.
+- If you can render the page, open it and look at it. Running it locally, use a port your identity provider already accepts as a callback and point the dev proxy at the backend that holds the data — a fresh port fails the callback check, and a preview/mock server serves rows that look plausible and are not yours.
 - If you can't, run every panel's SQL through `run_sql` with `{{from}}`/`{{to}}`/`{{bucket}}` and each `$var` substituted by hand, and confirm each returns rows carrying the exact `x`, `series` and `y` column names the panel declares. Say in your handover that you verified the queries, not the render.
 
 Hand over the host name with the link — it only works against the backend holding its data.

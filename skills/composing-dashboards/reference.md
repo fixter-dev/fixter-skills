@@ -156,7 +156,7 @@ SQL can carry customer identifiers.
 refuses to mint a definition that would render broken.
 
 ```
-node ~/.claude/skills/composing-dashboards/mint.mjs my-dashboard.json --host monitoring
+node <skill-dir>/mint.mjs my-dashboard.json [--host <origin>]
 ```
 
 ## Rendering facts worth knowing before you design around them
