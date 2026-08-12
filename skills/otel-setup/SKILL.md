@@ -177,6 +177,61 @@ value is on Kubernetes). If you do want one — e.g. for container-log collectio
 the tested example in the collector repo at `examples/docker-compose/` (compose file +
 standalone config + README); apps then point at `http://fixter-collector:4318`.
 
+**D. Existing Prometheus metrics:** Fixter speaks no Prometheus protocol, so these only
+arrive through a collector. Which receiver is right depends on what the project already
+runs — establish that before recommending either.
+
+**On Kubernetes the chart already does this** — do not hand-roll a receiver, same rule as
+option B. The distro ships the `prometheus` receiver and the chart exposes it as a values
+list, scraped by the single-replica `cluster` collector:
+
+    integrations:
+      prometheus:
+        targets:
+          - job: my-service
+            endpoints: ["my-service.default.svc.cluster.local:9090"]
+            interval: 30s
+
+State its limits up front, because they decide the case below: **static targets only** —
+no service discovery, no relabeling — and one replica, so no scrape HA. A handful of
+stable endpoints (datastores, exporters, a few services) is exactly what it is for; a
+large fleet that Prometheus discovers dynamically is not expressible here.
+
+**Off Kubernetes** there is no chart, so a collector alongside the app takes the targets
+directly:
+
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: <service-name>
+              static_configs:
+                - targets: ['<host>:<port>']
+
+**Prometheus already running** — ask what its histograms are before choosing:
+
+- **Classic histograms or summaries** (still the common case) → scrape. The
+  `prometheusremotewrite` receiver does not support either: they span multiple series
+  and it cannot tell when a family is complete, so they are **dropped, not degraded**.
+  This is where pushing back on remote-write is correct.
+- **Native histograms on Prometheus 3.x** → remote-write is legitimate, and is the
+  answer when their targets are discovered dynamically and the chart's static list
+  cannot express them. Be explicit about what it costs: **the Fixter distro does not
+  build the `prometheusremotewrite` receiver** (it builds only `filelog`, `hostmetrics`,
+  `k8scluster`, `kubeletstats`, `otlp`, `prometheus`), so this path means they run and
+  maintain their own contrib collector — the chart cannot do it. That receiver also
+  takes **v2 only** (v1 is rejected outright, not silently downgraded), is still
+  **alpha**, and needs `protobuf_message: io.prometheus.write.v2.Request` in their
+  `remote_write` block *plus* Prometheus started with
+  `--enable-feature=metadata-wal-records`, or type/unit/help never reach the WAL and it
+  cannot produce typed OTLP.
+
+Two things to set right on either path:
+- The `job` label becomes `service.name` and `instance` becomes `service.instance.id`.
+  If the job name is not the service name, set `service.name` explicitly.
+- Units usually arrive empty — Prometheus convention bakes them into the metric name
+  (`_seconds`, `_bytes`), and only OpenMetrics exposes a UNIT field.
+
 **Resource attributes to configure:**
 
 | Attribute | Required | Why |
