@@ -182,8 +182,9 @@ arrive through a collector. Which receiver is right depends on what the project 
 runs — establish that before recommending either.
 
 **On Kubernetes the chart already does this** — do not hand-roll a receiver, same rule as
-option B. The distro ships the `prometheus` receiver and the chart exposes it as a values
-list, scraped by the single-replica `cluster` collector:
+option B. Both forms below are scraped by the single-replica `cluster` collector.
+
+A list, for endpoints whose address does not change (datastores, exporters):
 
     integrations:
       prometheus:
@@ -192,10 +193,35 @@ list, scraped by the single-replica `cluster` collector:
             endpoints: ["my-service.default.svc.cluster.local:9090"]
             interval: 30s
 
-State its limits up front, because they decide the case below: **static targets only** —
-no service discovery, no relabeling — and one replica, so no scrape HA. A handful of
-stable endpoints (datastores, exporters, a few services) is exactly what it is for; a
-large fleet that Prometheus discovers dynamically is not expressible here.
+Or their existing scrape configs verbatim — service discovery, relabeling, keep/drop
+filters — which is the right form whenever targets are discovered rather than fixed:
+
+    integrations:
+      prometheus:
+        scrapeConfigs:
+          - job_name: kubernetes-pods
+            kubernetes_sd_configs:
+              - role: pod
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                action: keep
+                regex: "true"
+
+`scrapeConfigs` needs **chart 0.5.0 or newer**. Check with `helm list -n fixter` before
+recommending it: on an older chart Helm accepts the value, ignores it, and nothing
+scrapes — no error, no warning.
+
+**What the chart still cannot do.** These decide the remote-write case below, so
+establish them before recommending anything:
+
+- **Anything referencing a file.** The `cluster` collector mounts only its own config, so
+  `ca_file`, `cert_file`, `key_file` and `password_file` have nothing to point at. The
+  ServiceAccount token is automounted, so `bearer_token_file` against the Kubernetes API
+  works. A target behind a private CA does not.
+- **Scale past one pod.** `cluster` is one replica by design and there is no target
+  allocator to shard across replicas. Hundreds of targets is fine; thousands is not.
+- **A `global:` block.** Only `scrape_configs` is passed through, so a global
+  `scrape_interval` is silently lost — set it per job.
 
 **Off Kubernetes** there is no chart, so a collector alongside the app takes the targets
 directly:
@@ -214,9 +240,10 @@ directly:
   `prometheusremotewrite` receiver does not support either: they span multiple series
   and it cannot tell when a family is complete, so they are **dropped, not degraded**.
   This is where pushing back on remote-write is correct.
-- **Native histograms on Prometheus 3.x** → remote-write is legitimate, and is the
-  answer when their targets are discovered dynamically and the chart's static list
-  cannot express them. Be explicit about what it costs: **the Fixter distro does not
+- **Native histograms on Prometheus 3.x** → remote-write is legitimate when one of the
+  chart limits above actually binds: a fleet too large for a single pod, or targets that
+  need file-based TLS or auth. Dynamic discovery alone is not a reason — `scrapeConfigs`
+  expresses it. Be explicit about what it costs: **the Fixter distro does not
   build the `prometheusremotewrite` receiver** (it builds only `filelog`, `hostmetrics`,
   `k8scluster`, `kubeletstats`, `otlp`, `prometheus`), so this path means they run and
   maintain their own contrib collector — the chart cannot do it. That receiver also
