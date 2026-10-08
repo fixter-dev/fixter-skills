@@ -1,6 +1,8 @@
 ## Getting Started with Fixter
 
-AI-native monitoring for builders. No dashboards, no alert fatigue — just signal. This plugin gets your project instrumented and sending data to Fixter in minutes, right from Claude Code.
+[Fixter](https://fixter.dev) catches the errors and bugs in your app in production, finds the root cause, and fixes them: in your coding agent over MCP, or as a pull request ready for your review. Error tracking, logs and uptime monitoring for small teams.
+
+This plugin gets your project instrumented and sending data to Fixter in minutes, right from Claude Code.
 
 ### Prerequisites
 
